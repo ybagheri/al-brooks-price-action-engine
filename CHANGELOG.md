@@ -16,6 +16,14 @@ been statistically validated, and no performance claim is made.
 - `docs/algorithms/MEASURED_MOVES.md` — measured-move specification, including
   the enforced no-lookahead contract.
 - `mypy` added to development dependencies and CI.
+- `src/albrooks/setups/measured_move_types.py` — `MeasuredMoveLeg`,
+  `MeasuredMoveOrigin` and `MeasuredMoveEvidence`, split out so Phase 11 can
+  depend on the data model without depending on the projection algorithms.
+- `MeasuredMoveProjection` now reports `reference_leg`, `origin`, `evidence` and
+  `confidence` for all five projection families. `confidence` is exactly the mean
+  of the stored evidence weights, so the scalar is always reproducible from its
+  own evidence. It is **not** a probability or a win rate; nothing here has been
+  calibrated against outcomes.
 
 ### Changed
 - `docs/algorithms/MEASURED_MOVE.md` renamed to `MEASURED_MOVES.md` to match the
@@ -23,6 +31,17 @@ been statistically validated, and no performance claim is made.
 - `AnalyzerConfig` gained the measured-move family flags
   (`enable_range_mm`, `enable_channel_mm`, `enable_gap_mm`,
   `enable_inverse_mm`, `range_lookback`, `min_gap_atr`).
+- The measured-move families are now assembled by one `_build_projection` helper,
+  so a new family cannot skip the evidence model by accident. The `CHANNEL`
+  shallow-pullback bound is the named constant `CHANNEL_MIN_DEPTH` rather than a
+  literal repeated in the gate and the evidence band.
+
+### Fixed
+- A "distance to target" evidence factor was removed during review. In all five
+  families the target is exactly one measured range from the reference price, so
+  the factor was `mm_range` restated against a different constant — two names for
+  one number, whose apparent independence from the scale factor was an artefact of
+  the arithmetic. A test pins the relationship.
 
 ## [0.1.0] — 2026-09-27
 

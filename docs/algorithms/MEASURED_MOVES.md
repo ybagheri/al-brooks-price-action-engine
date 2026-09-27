@@ -100,7 +100,79 @@ weakest family in the engine and is gated separately (`enable_inverse_mm`) so it
 be excluded from live use until it has been reviewed out of sample.
 
 
-## 4. No-Repaint Contract
+## 4. Evidence, Confidence and Reference Geometry
+
+Every projection reports *why* it was made, not only what it predicts. Three fields
+carry that:
+
+| Field | Answers |
+|---|---|
+| `reference_leg` | which geometry was measured, in which direction, over which bars |
+| `origin` | the bar and price the target is measured off |
+| `evidence` + `confidence` | the factors behind the projection, and a single summary number |
+
+### 4.1 Reference leg and origin
+
+`reference_leg.kind` records what "reference leg" meant for that family, because the
+geometry genuinely differs:
+
+| Family | `kind` | Span | `direction` |
+|---|---|---|---|
+| `REGULAR`, `CHANNEL` | `SWING` | the `A0 -> A1` impulse | the projection's |
+| `RANGE` | `RANGE` | `HH - LL` over the window, low to high | `0` — a range is two-sided |
+| `GAP` | `GAP` | prior extreme to the gap bar | the projection's |
+| `INVERSE` | `INVERSE` | the leg whose extreme failed | the **leg's**, opposite to the projection |
+
+`RANGE` deliberately reports `direction = 0` rather than the breakout's direction. The
+range window has no direction of its own, and recording the projection's direction
+there would be a fabricated edge duplicated from a field that already has it.
+
+`origin.kind` is `SWING` (the pullback extreme `B0`), `RANGE_CLOSE` or `GAP_CLOSE` (the
+breakout bar's close), or `FAILURE` (the reclaim bar). By construction the target is
+exactly one measured range from the origin, along the direction:
+`target = origin.price + direction * mm_range`.
+
+### 4.2 Evidence factors
+
+Each family is scored on `MM_SCALE` plus its own single structure factor, so the axes
+are directly comparable across families:
+
+| Code | Weight | Families |
+|---|---|---|
+| `MM_SCALE` | ramp of `mm_range` to 1.0 at `2.0 ATR` | all |
+| `MM_PULLBACK_IN_BAND` | 1.0 at the centre of the accepting band, 0.0 at either edge | `REGULAR`, `CHANNEL` |
+| `MM_BREAKOUT_MARGIN` | ramp of the close beyond the range edge to 1.0 at `0.5 ATR` | `RANGE` |
+| `MM_GAP_QUALITY` | 0.0 at the 0.75 close-strength gate, 1.0 at the bar's extreme | `GAP` |
+| `MM_FAILURE_DEPTH` | ramp of the reclaim through the leg extreme to 1.0 at `0.5 ATR` | `INVERSE` |
+
+A pullback depth is scored against **the band of the family that accepted it**. A
+depth of `0.10` is mid-band for a `CHANNEL` (band `[0.02, 0.15]`) and far outside the
+`REGULAR` band (`[0.15, 0.90]`), so the two numbers are not interchangeable.
+
+> **No "distance to target" factor, deliberately.** In all five families the target
+> sits exactly one measured range from the reference price, so such a factor is
+> `mm_range` restated against a different constant. Its independence from `MM_SCALE`
+> would be an artefact of the arithmetic, not a second opinion. A test pins the
+> relationship so reintroducing the duplicate has to be a conscious decision.
+
+### 4.3 What `confidence` is, and is not
+
+`confidence` is the **arithmetic mean of the stored evidence weights**. The weights
+are stored alongside it, so the scalar is always reproducible from its own evidence
+and cannot drift away from it.
+
+It is **not** a probability, a win rate, or a confidence interval. Nothing here has
+been calibrated against outcomes, so `0.8` does not mean the target is reached 80% of
+the time. The *weights* rank factors against each other in `0..1`; they are not
+independent likelihoods and are not expected to sum to 1. The mean exists so a list of
+projections can be ordered at a glance. Turning this into a calibrated score is
+Phase 13's job, and it requires data this repository does not have.
+
+Classification: the gates deciding *which* projections form are **ALGORITHMIC**; the
+ramp constants are **HEURISTIC**; reducing two geometric ratios to one number is a
+**PROXY**.
+
+## 5. No-Repaint Contract
 - All families read bars `[0 .. last_closed]` only; a `last_closed` beyond the
   available data is clamped rather than rejected.
 - Swing families consume only swings whose confirmation bar is `<= last_closed`, so a
@@ -108,7 +180,7 @@ be excluded from live use until it has been reviewed out of sample.
 - The output for a given `last_closed` is therefore **identical** whether or not later
   bars exist. This is asserted directly in the test suite.
 
-## 5. Configuration
+## 6. Configuration
 | Key | Default | Meaning |
 |---|---|---|
 | `enable_range_mm` | `True` | Master switch for the `RANGE` family |
@@ -128,12 +200,17 @@ be excluded from live use until it has been reviewed out of sample.
 > default to on, because this module is a framework rather than one strategy: the
 > family flags exist to *narrow* the analysis, not to switch it on.
 
-## 6. Usage
+## 7. Usage
 ```python
 from albrooks.core.swings import find_swings
 from albrooks.setups.measured_move import detect_measured_moves
 
 swings = find_swings(bars, last_closed_idx=last_closed, k=3)
 for p in detect_measured_moves(bars, swings, atr=atr, last_closed=last_closed):
-    print(p.family, p.direction, p.target_price, p.to_dict())
+    # confidence is the mean of the evidence weights, not a probability
+    print(p.family, p.direction, p.target_price, f"{p.confidence:.2f}")
+    for e in p.evidence:
+        print(f"    {e.code}={e.weight:.2f} {e.detail}")
+    print(f"    measured {p.reference_leg.label}, from {p.origin.price}")
+    print(p.to_dict())
 ```

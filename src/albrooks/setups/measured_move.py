@@ -9,6 +9,47 @@ Implements systematic projection families inspired by Al Brooks price action:
 5. Inverse MM Projection (failed breakout of the swing leg extreme)
 
 All projections are computed from closed bars only, so nothing repaints.
+
+## Evidence and confidence
+
+Every projection carries a `reference_leg` (the geometry it measures from), an
+`origin` (the bar and price the target is measured off), an `evidence` list and a
+scalar `confidence`.
+
+`confidence` is the **arithmetic mean of the evidence weights**, and the weights are
+stored, so the scalar is always reproducible from the evidence that produced it.
+That is the only guarantee made about it:
+
+- It is **not** a probability, a win rate, or a confidence interval. `0.8` does not
+  mean the target is reached 80% of the time; no such calibration exists here.
+- The *weights* are a **relative** ranking of contributing factors, in 0..1, not
+  independent likelihoods that sum to 1.
+- Two factors of `0.5` is not "50% more likely". The mean exists to make a list of
+  projections orderable at a glance; anything sharper is Phase 13's job, with data.
+
+Every family is scored on the same two axes, so the numbers are comparable across
+families:
+
+| Code | Measures | Applies to |
+|---|---|---|
+| `MM_SCALE` | measured range in ATR multiples | all |
+| `MM_PULLBACK_IN_BAND` | depth relative to the accepting band | `REGULAR`, `CHANNEL` |
+| `MM_BREAKOUT_MARGIN` | how far the close cleared the range edge | `RANGE` |
+| `MM_GAP_QUALITY` | how near the extreme the gap bar closed | `GAP` |
+| `MM_FAILURE_DEPTH` | how decisively the reclaim fell back through the extreme | `INVERSE` |
+
+> **Why there is no "distance to target" factor.** An earlier draft scored one, and it
+> was removed. In all five families the target is exactly one measured range from the
+> reference price, so such a factor is `mm_range` restated with a different constant:
+> two names for one number, and its apparent independence from `MM_SCALE` was an
+> artefact of the arithmetic. Confidence is the mean of the *distinct* factors, so the
+> count differs by family; a family with a single structure factor is not penalised
+> for it.
+
+Factor classification, stated plainly: the *gates* (which projections form at all)
+are ALGORITHMIC; the *ramp constants* below are HEURISTIC; reading two geometric
+ratios as a single quality number is a PROXY. The constants are named rather than
+buried in arithmetic so they can be reviewed out of sample.
 """
 
 from __future__ import annotations
@@ -21,6 +62,11 @@ from albrooks.core.bars import Bar, BarSeries
 from albrooks.core.legs import Leg
 from albrooks.core.swings import SwingPoint
 from albrooks.engine.configuration import AnalyzerConfig
+from albrooks.setups.measured_move_types import (
+    MeasuredMoveEvidence,
+    MeasuredMoveLeg,
+    MeasuredMoveOrigin,
+)
 
 
 class MMFamily(str, Enum):
@@ -49,9 +95,145 @@ class MeasuredMoveProjection:
     a0: dict[str, Any] | None = None
     a1: dict[str, Any] | None = None
     b0: dict[str, Any] | None = None
+    reference_leg: MeasuredMoveLeg | None = None
+    origin: MeasuredMoveOrigin | None = None
+    evidence: tuple[MeasuredMoveEvidence, ...] = ()
+    confidence: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+# ---------------------------------------------------------------------------
+# Evidence factors
+# ---------------------------------------------------------------------------
+
+#: ATR multiple at which `MM_SCALE` reaches full weight.
+SCALE_FULL_ATR = 2.0
+#: ATR multiple at which a single family-specific factor reaches full weight.
+STRUCTURE_FULL_ATR = 0.5
+
+#: Shallowest pullback accepted as a channel, as a fraction of the measured leg.
+CHANNEL_MIN_DEPTH = 0.02
+
+# Reference-leg kinds, matching `MeasuredMoveLeg.kind`.
+LEG_KIND_SWING = "SWING"
+LEG_KIND_RANGE = "RANGE"
+LEG_KIND_GAP = "GAP"
+LEG_KIND_INVERSE = "INVERSE"
+
+# Origin kinds, matching `MeasuredMoveOrigin.kind`.
+ORIGIN_KIND_SWING = "SWING"
+ORIGIN_KIND_RANGE_CLOSE = "RANGE_CLOSE"
+ORIGIN_KIND_GAP_CLOSE = "GAP_CLOSE"
+ORIGIN_KIND_FAILURE = "FAILURE"
+
+# Stable evidence codes, consumed by the Phase 13 evidence model.
+EV_SCALE = "MM_SCALE"
+EV_PULLBACK_BAND = "MM_PULLBACK_IN_BAND"
+EV_BREAKOUT_MARGIN = "MM_BREAKOUT_MARGIN"
+EV_GAP_QUALITY = "MM_GAP_QUALITY"
+EV_FAILURE_DEPTH = "MM_FAILURE_DEPTH"
+
+
+def _clamp01(value: float) -> float:
+    """Clamp to the closed unit interval, mapping NaN to 0.0.
+
+    A NaN would otherwise poison `confidence` while still comparing False against 0,
+    so a projection could pass a `confidence > 0` check with a meaningless value.
+    """
+    if value != value:  # NaN
+        return 0.0
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+
+def _ramp(value: float, full: float) -> float:
+    """Linear 0..1 ramp reaching 1.0 at `full`.
+
+    Used for every evidence weight so no family can report a factor outside 0..1.
+    """
+    if full <= 0:
+        return 0.0
+    return _clamp01(value / full)
+
+
+def _mean(weights: list[float]) -> float:
+    return sum(weights) / len(weights) if weights else 0.0
+
+
+def _band_quality(value: float, low: float, high: float) -> float:
+    """1.0 at the centre of `[low, high]`, falling linearly to 0.0 at each edge.
+
+    Pullback depth is only meaningful relative to the band the family accepts, so a
+    mid-band pullback scores higher than one sitting exactly on a gate boundary. The
+    band edges score 0.0 rather than something small but positive, so "at the limit"
+    and "not really in the band" cannot be confused for a graded difference.
+    """
+    if high <= low:
+        return 0.0
+    mid = (low + high) / 2.0
+    half = (high - low) / 2.0
+    return _clamp01(1.0 - abs(value - mid) / half)
+
+
+def _build_projection(
+    *,
+    family: str,
+    direction: int,
+    target_price: float,
+    mm_range: float,
+    origin_bar: int,
+    anchor_bar: int,
+    reference_price: float,
+    a0: dict[str, Any],
+    a1: dict[str, Any],
+    b0: dict[str, Any],
+    reference_leg: MeasuredMoveLeg,
+    origin: MeasuredMoveOrigin,
+    atr: float,
+    structure_factor: MeasuredMoveEvidence,
+    pullback_depth: float = 0.0,
+) -> MeasuredMoveProjection:
+    """Assemble a projection and derive its evidence and confidence.
+
+    Every family is scored on `MM_SCALE` plus its own structure factor, so the axes
+    are comparable across families. The gates have already run, so a projection
+    reaching this point is valid by construction and the weights describe *quality
+    within the accepted set*, not validity.
+
+    `confidence` is the mean of the stored weights, so it is always exactly
+    reproducible from `evidence` and can never drift away from its own factors.
+    """
+    evidence: tuple[MeasuredMoveEvidence, ...] = (
+        MeasuredMoveEvidence(
+            EV_SCALE,
+            _ramp(mm_range, SCALE_FULL_ATR * atr),
+            f"measured range {mm_range:.6g} = {mm_range / atr:.2f} ATR",
+        ),
+        structure_factor,
+    )
+    return MeasuredMoveProjection(
+        found=True,
+        family=family,
+        direction=direction,
+        target_price=target_price,
+        mm_range=mm_range,
+        origin_bar=origin_bar,
+        anchor_bar=anchor_bar,
+        reference_price=reference_price,
+        pullback_depth=pullback_depth,
+        a0=a0,
+        a1=a1,
+        b0=b0,
+        reference_leg=reference_leg,
+        origin=origin,
+        evidence=evidence,
+        confidence=_mean([e.weight for e in evidence]),
+    )
 
 
 def _get_ohlc(b: Bar | dict[str, Any]) -> tuple[float, float, float, float]:
@@ -154,8 +336,7 @@ def project_leg_equality(
         return None
 
     target = sb["price"] + direction * mm_range
-    return MeasuredMoveProjection(
-        found=True,
+    return _build_projection(
         family=MMFamily.REGULAR.value,
         direction=direction,
         target_price=target,
@@ -167,6 +348,28 @@ def project_leg_equality(
         a0=s0,
         a1=s1,
         b0=sb,
+        reference_leg=MeasuredMoveLeg(
+            kind=LEG_KIND_SWING,
+            start_index=s0["bar"],
+            end_index=s1["bar"],
+            start_price=s0["price"],
+            end_price=s1["price"],
+            direction=direction,
+            size=mm_range,
+            confirmed_index=s1["confirmed_bar"],
+            label="A0->A1",
+        ),
+        origin=MeasuredMoveOrigin(
+            bar_index=sb["bar"],
+            price=sb["price"],
+            kind=ORIGIN_KIND_SWING,
+        ),
+        atr=atr,
+        structure_factor=MeasuredMoveEvidence(
+            EV_PULLBACK_BAND,
+            _band_quality(depth, cfg.min_pb_ratio, cfg.max_pb_ratio),
+            f"pullback depth {depth:.2f} of the leg",
+        ),
     )
 
 
@@ -204,7 +407,7 @@ def project_channel(
         return None
 
     depth = _depth(direction, s1["price"], sb["price"], mm_range)
-    if not (0.02 <= depth < cfg.min_pb_ratio):
+    if not (CHANNEL_MIN_DEPTH <= depth < cfg.min_pb_ratio):
         return None
 
     pb_bars = sb["bar"] - s1["bar"]
@@ -212,8 +415,7 @@ def project_channel(
         return None
 
     target = sb["price"] + direction * mm_range
-    return MeasuredMoveProjection(
-        found=True,
+    return _build_projection(
         family=MMFamily.CHANNEL.value,
         direction=direction,
         target_price=target,
@@ -225,6 +427,32 @@ def project_channel(
         a0=s0,
         a1=s1,
         b0=sb,
+        reference_leg=MeasuredMoveLeg(
+            kind=LEG_KIND_SWING,
+            start_index=s0["bar"],
+            end_index=s1["bar"],
+            start_price=s0["price"],
+            end_price=s1["price"],
+            direction=direction,
+            size=mm_range,
+            confirmed_index=s1["confirmed_bar"],
+            label="A0->A1",
+        ),
+        origin=MeasuredMoveOrigin(
+            bar_index=sb["bar"],
+            price=sb["price"],
+            kind=ORIGIN_KIND_SWING,
+        ),
+        atr=atr,
+        structure_factor=MeasuredMoveEvidence(
+            EV_PULLBACK_BAND,
+            # Same factor as REGULAR, but scored against the channel's own shallow
+            # band. A depth of 0.08 is mid-band for a channel and would be a reject
+            # for a regular pullback, so the same number is not comparable across
+            # the two families.
+            _band_quality(depth, CHANNEL_MIN_DEPTH, cfg.min_pb_ratio),
+            f"channel pullback depth {depth:.2f} of the leg",
+        ),
     )
 
 
@@ -268,8 +496,7 @@ def project_range(
     else:
         return None
 
-    return MeasuredMoveProjection(
-        found=True,
+    return _build_projection(
         family=MMFamily.RANGE.value,
         direction=direction,
         target_price=bo_c + direction * height,
@@ -280,6 +507,32 @@ def project_range(
         a0={"bar": start_idx, "price": ll, "dir": -1, "confirmed_bar": -1},
         a1={"bar": bo_idx - 1, "price": hh, "dir": 1, "confirmed_bar": -1},
         b0={"bar": bo_idx, "price": bo_c, "dir": direction, "confirmed_bar": -1},
+        reference_leg=MeasuredMoveLeg(
+            kind=LEG_KIND_RANGE,
+            start_index=start_idx,
+            end_index=bo_idx - 1,
+            start_price=ll,
+            end_price=hh,
+            # A range is two-sided; the low is the start and the high the end, and
+            # `direction` is left at 0 because the geometry is not itself directional.
+            direction=0,
+            size=height,
+            confirmed_index=bo_idx - 1,
+            label="RANGE_LOW->RANGE_HIGH",
+        ),
+        origin=MeasuredMoveOrigin(
+            bar_index=bo_idx,
+            price=bo_c,
+            kind=ORIGIN_KIND_RANGE_CLOSE,
+        ),
+        atr=atr,
+        structure_factor=MeasuredMoveEvidence(
+            EV_BREAKOUT_MARGIN,
+            # How far the close cleared the range edge. A breakout that barely
+            # exceeded the extreme is the one most likely to fall back into the range.
+            _ramp(abs(bo_c - (hh if direction > 0 else ll)), STRUCTURE_FULL_ATR * atr),
+            f"closed {abs(bo_c - (hh if direction > 0 else ll)):.6g} beyond the range edge",
+        ),
     )
 
 
@@ -322,8 +575,8 @@ def project_gap(
 
     prior_extreme = prev_h if bull_gap else prev_l
     gap_extreme = curr_l if bull_gap else curr_h
-    return MeasuredMoveProjection(
-        found=True,
+    close_strength = (curr_c - curr_l) / rg if bull_gap else (curr_h - curr_c) / rg
+    return _build_projection(
         family=MMFamily.GAP.value,
         direction=direction,
         target_price=curr_c + direction * gap_size,
@@ -334,6 +587,31 @@ def project_gap(
         a0={"bar": gap_idx - 1, "price": prior_extreme, "dir": -direction, "confirmed_bar": -1},
         a1={"bar": gap_idx, "price": gap_extreme, "dir": direction, "confirmed_bar": -1},
         b0={"bar": gap_idx, "price": curr_c, "dir": direction, "confirmed_bar": -1},
+        reference_leg=MeasuredMoveLeg(
+            kind=LEG_KIND_GAP,
+            start_index=gap_idx - 1,
+            end_index=gap_idx,
+            start_price=prior_extreme,
+            end_price=gap_extreme,
+            direction=direction,
+            size=gap_size,
+            confirmed_index=gap_idx,
+            label="PRIOR_EXTREME->GAP_BAR",
+        ),
+        origin=MeasuredMoveOrigin(
+            bar_index=gap_idx,
+            price=curr_c,
+            kind=ORIGIN_KIND_GAP_CLOSE,
+        ),
+        atr=atr,
+        structure_factor=MeasuredMoveEvidence(
+            EV_GAP_QUALITY,
+            # The gate already requires a close in the extreme 25% of the bar. Within
+            # that accepted range, a close on the very edge outranks one near the
+            # 0.75 boundary, which is the marginal case the gate lets through.
+            _clamp01((close_strength - 0.75) / 0.25),
+            f"gap bar closed at {close_strength:.0%} of its range",
+        ),
     )
 
 
@@ -400,6 +678,8 @@ def project_inverse(
     ext = a1_price
     fail_bar = -1
     break_bar = -1
+    #: Close of the reclaim bar, i.e. how decisively price fell back through `ext`.
+    fail_close = 0.0
 
     if direction > 0:
         extreme_high = 0.0
@@ -419,14 +699,14 @@ def project_inverse(
                 extreme_high, extreme_low = th, tl
             if tc < ext:
                 fail_bar = t
+                fail_close = tc
                 break
         if fail_bar < 0:
             return None
         target = extreme_low - mm_range
         if target >= extreme_low:
             return None
-        return MeasuredMoveProjection(
-            found=True,
+        return _build_projection(
             family=MMFamily.INVERSE.value,
             direction=-1,
             target_price=target,
@@ -437,6 +717,30 @@ def project_inverse(
             a0={"bar": a0_bar, "price": a0_price, "dir": -1, "confirmed_bar": -1},
             a1={"bar": a1_bar, "price": a1_price, "dir": 1, "confirmed_bar": -1},
             b0={"bar": fail_bar, "price": extreme_high, "dir": 1, "confirmed_bar": -1},
+            reference_leg=MeasuredMoveLeg(
+                kind=LEG_KIND_INVERSE,
+                start_index=a0_bar,
+                end_index=a1_bar,
+                start_price=a0_price,
+                end_price=a1_price,
+                direction=direction,
+                size=mm_range,
+                confirmed_index=a1_bar,
+                label="LEG_A0->LEG_A1",
+            ),
+            origin=MeasuredMoveOrigin(
+                bar_index=fail_bar,
+                price=extreme_low,
+                kind=ORIGIN_KIND_FAILURE,
+            ),
+            atr=atr,
+            structure_factor=MeasuredMoveEvidence(
+                EV_FAILURE_DEPTH,
+                # The reclaim has to close back through the leg extreme to count at
+                # all, so the factor grades how decisively it did rather than whether.
+                _ramp(abs(ext - fail_close), STRUCTURE_FULL_ATR * atr),
+                f"reclaimed {abs(ext - fail_close):.6g} through the leg extreme",
+            ),
         )
 
     # `lowest` is the low of the most bearish bar scanned so far; `low_bar` is
@@ -458,12 +762,12 @@ def project_inverse(
             lowest, low_bar = tl, t
         if tc > ext:
             fail_bar = t
+            fail_close = tc
             break
     if fail_bar < 0:
         return None
     anchor_high = _get_ohlc(bars[low_bar])[1]
-    return MeasuredMoveProjection(
-        found=True,
+    return _build_projection(
         family=MMFamily.INVERSE.value,
         direction=1,
         target_price=anchor_high + mm_range,
@@ -474,6 +778,28 @@ def project_inverse(
         a0={"bar": a0_bar, "price": a0_price, "dir": 1, "confirmed_bar": -1},
         a1={"bar": a1_bar, "price": a1_price, "dir": -1, "confirmed_bar": -1},
         b0={"bar": fail_bar, "price": lowest, "dir": -1, "confirmed_bar": -1},
+        reference_leg=MeasuredMoveLeg(
+            kind=LEG_KIND_INVERSE,
+            start_index=a0_bar,
+            end_index=a1_bar,
+            start_price=a0_price,
+            end_price=a1_price,
+            direction=direction,
+            size=mm_range,
+            confirmed_index=a1_bar,
+            label="LEG_A0->LEG_A1",
+        ),
+        origin=MeasuredMoveOrigin(
+            bar_index=fail_bar,
+            price=anchor_high,
+            kind=ORIGIN_KIND_FAILURE,
+        ),
+        atr=atr,
+        structure_factor=MeasuredMoveEvidence(
+            EV_FAILURE_DEPTH,
+            _ramp(abs(ext - fail_close), STRUCTURE_FULL_ATR * atr),
+            f"reclaimed {abs(ext - fail_close):.6g} through the leg extreme",
+        ),
     )
 
 
