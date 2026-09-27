@@ -19,9 +19,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Objective**: Package metadata, configuration, normalized bar representations, serialization, core models, CI workflow.
   - **Status**: Completed.
 
-- [ ] **Phase 2 — Bar-by-Bar Engine**
+- [x] **Phase 2 — Bar-by-Bar Engine**
   - **Objective**: Objective per-bar features (body, wicks, close location, doji, inside/outside, barbwire, overlap, pressure).
   - **Deliverable**: `src/albrooks/price_action/bars.py`, `docs/algorithms/BAR_BY_BAR.md`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 3 — Swings, Pivots and Legs**
   - **Objective**: Fractal swing detection, legs, pivots, delayed confirmation without lookahead.
