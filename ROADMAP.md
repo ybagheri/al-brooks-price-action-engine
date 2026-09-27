@@ -34,9 +34,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/context/market_state.py`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 5 — Price-Action Structures**
+- [x] **Phase 5 — Price-Action Structures**
   - **Objective**: Trend legs, channels, micro gaps, exhaustion, wedges, pressure.
   - **Deliverable**: `src/albrooks/core/structures.py`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 6 — H1/H2 and L1/L2 Engine**
   - **Objective**: Systematic pullback counting, candidate/provisional/confirmed/invalidated states.
