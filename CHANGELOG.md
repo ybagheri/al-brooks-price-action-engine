@@ -97,13 +97,23 @@ implementation being brought into line with the master specification; the
   `GAP` (measuring gap) and `INVERSE` (failed breakout of the leg extreme).
 
 ### Known gaps
+*(as of 0.1.0; see the Unreleased section above for which of these are now closed)*
+
 - `Analyzer.analyze()` still returns a Phase 1 placeholder; the pipeline is not
   wired, so the documented public API does not yet produce analysis output.
+  **Closed** — the pipeline is wired (B9).
 - `AnalysisResult` is missing the `trends`, `channels`, `pullbacks`, `breakouts`,
   `reversals` and `evidence` fields named in the specification.
+  **Closed** (B9).
 - Pivots (Phase 3) and several structures (Phase 5) are not implemented.
+  **Closed** (B1, B3).
 - Pullback lifecycle states (Phase 6) are not distinguished.
+  **Closed** (B4).
 - `MeasuredMove` does not yet expose the `reference_leg`, `confidence` or
-  `evidence` fields required by the specification.
+  `evidence` fields required by the specification. **Closed** (B8).
 - Reversal detection, quality and decision are not yet separated.
+  **Closed** (B7).
 - No `examples/`, integration, regression, parity or golden test suites yet.
+  Partly addressed: the pipeline suite in `tests/unit/test_engine_pipeline.py`
+  is an integration/regression suite. `examples/`, parity and golden fixtures
+  remain.
