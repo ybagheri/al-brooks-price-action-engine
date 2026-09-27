@@ -79,6 +79,13 @@ class AnalyzerConfig:
     #: Projections are seeded from the most recent confirmed swing triples.
     fm_recent_swings: int = 8
 
+    # Evidence scoring
+    #: Lower bound of the `STRONG` evidence band. Coarse on purpose; see
+    #: `docs/algorithms/EVIDENCE_MODEL.md` §5.
+    evidence_strong_band: float = 0.70
+    #: Lower bound of the `MODERATE` band, below which evidence is `WEAK`.
+    evidence_moderate_band: float = 0.40
+
     # Decision Engine & Gating
     enable_decision: bool = True
     min_score: float = 40.0

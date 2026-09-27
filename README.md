@@ -30,7 +30,8 @@ Work is in progress. See [ROADMAP.md](ROADMAP.md) for per-phase status and
 | Measured moves | Implemented, with evidence and confidence |
 | Fading measured moves | Implemented — full lifecycle |
 | `Analyzer.analyze()` pipeline | Wired — all layers above, closed-bar only |
-| Evidence model, trade plans, decisions | Not started |
+| Evidence model | Implemented — one factor shape, source-balanced score |
+| Trade plans, decisions | Not started |
 | MQL5 parity, MT5 adapter | Not started |
 
 **Implementation status is not trading validation.** See

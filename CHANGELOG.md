@@ -141,7 +141,60 @@ been statistically validated, and no performance claim is made.
   **2027-Feb-18**, after which the package would no longer build at all. The
   wheel now reports `License-Expression: MIT` and bundles the `LICENSE` file.
 
+### Added
+- **Phase 13** — `src/albrooks/evaluation/evidence.py` and `scoring.py`: one
+  `EvidenceFactor` shape for the five evidence vocabularies the engine speaks
+  (market state, measured move, reversal, pullback, breakout), plus a source-
+  balanced aggregator and coarse banding.
+- `EvidenceFactor.basis` records **why** a weight is the number it is:
+  `MEASURED` (computed from data), `LIFECYCLE` (a discrete state-machine
+  position) or `ASSERTED` (present, no magnitude). A pullback's `CONFIRMED` is
+  not "0.75 confirmed", and an unquantified observation is not recorded as
+  `0.0` — which would read as "measured, and came out nil" and silently drag an
+  aggregate down. `ASSERTED` factors take a documented `UNQUANTIFIED_WEIGHT`
+  and are flagged, and a bundle reports `quantified_share` so a "score" that was
+  really a list of presence flags cannot pass unnoticed.
+- `EvidenceScore` averages **within each source first**, then across sources, so
+  each contributing source gets an equal say. A flat mean would let the chattier
+  source dominate on factor count alone: the reversal adapter emits one factor
+  per satisfied leg while the pullback adapter emits exactly one, so a four-leg
+  reversal would outweigh a confirmed pullback arithmetically and for no
+  substantive reason. The per-source means are retained in `by_source`.
+- `AnalyzerConfig` gained `evidence_strong_band` and `evidence_moderate_band`.
+  ARCHITECTURE.md §11 requires every heuristic threshold to be configurable
+  rather than a literal inside a detector, and the two new bands had nowhere
+  else to live.
+- `docs/algorithms/EVIDENCE_MODEL.md` — the evidence-model specification,
+  including what the aggregate is **not**.
+
+### Changed
+- Per `docs/architecture/CONCEPT_TAXONOMY.md` §6, the aggregate is called an
+  **evidence score** rather than a confidence, and `EvidenceScore.to_dict()`
+  carries `"is_probability": false` so a downstream consumer is told what the
+  number is rather than left to know. Nothing in this project has been
+  calibrated against outcomes, so no rate can be derived from it.
+
 ### Known limitations
+- `INVALIDATED` pullbacks and `FAILED` breakouts are **excluded** by their
+  adapters rather than scored low. "Scored badly" and "not a candidate" are
+  different statements, and folding a terminal negative in as a small weight
+  would collapse them.
+- The pullback adapter's lifecycle values (`CANDIDATE` 1/3, `PROVISIONAL` 2/3,
+  `CONFIRMED` 1.0) are evenly spaced for stability only. The gaps are **not**
+  meaningful: a `PROVISIONAL` pullback is not "twice as provisional" as a
+  `CANDIDATE` one.
+- The market-state adapter decides whether a factor is measured by looking for a
+  trailing number in its detail string. That works for the current three codes
+  and would need revisiting if the engine began emitting mid-sentence numbers,
+  which is why the parser reads only the last token.
+- The evidence model is not yet consumed by `Analyzer.analyze()`; the
+  pipeline's existing `evidence` list is unchanged, because rewiring it would
+  have altered output that `tests/unit/test_engine_pipeline.py` pins. Wiring the
+  two together is Phase 16's pipeline work.
+- `AnalyzerConfig.min_score` is still consumed by nothing. Phase 13 supplies the
+  evidence score it was evidently waiting for, but gating on it is the decision
+  engine's job (Phase 15), so it is deliberately left unwired rather than used
+  as a threshold here.
 - The FM exhaustion gate binds more loosely than the specification's wording
   suggests. A bar touching a measured-move target is by construction the extreme
   of the recent range, so the `overshoot` exhaustion condition is almost always

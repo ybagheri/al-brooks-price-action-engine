@@ -79,9 +79,18 @@ This roadmap documents the implementation progress across all 23 development pha
     rather than left as a comment. The registry does not yet *replace* the
     analyzer's direct detector calls; that is Phase 16's pipeline work.
 
-- [ ] **Phase 13 — Setup Evidence Model**
+- [x] **Phase 13 — Setup Evidence Model**
   - **Objective**: Structured multi-factor evidence, weights, warnings, confidence heuristics.
   - **Deliverable**: `src/albrooks/evaluation/evidence.py`, `src/albrooks/evaluation/scoring.py`, tests.
+  - **Status**: Completed. One `EvidenceFactor` shape for the five vocabularies,
+    with a `basis` recording *why* each weight is the number it is
+    (`MEASURED` / `LIFECYCLE` / `ASSERTED`) so a lifecycle position is never
+    scored as though it sat on a continuum. The score is reproducible from its
+    own factors and balances sources equally, so the chattier source cannot
+    dominate on count alone. Per
+    `docs/architecture/CONCEPT_TAXONOMY.md` §6 it is called an *evidence score*
+    and the payload carries `is_probability: false`. Not yet consumed by the
+    pipeline; that is Phase 16.
 
 - [ ] **Phase 14 — Trade Plan Engine**
   - **Objective**: Platform-independent trade plan (entry, stop, target, R:R, invalidation, management notes).
