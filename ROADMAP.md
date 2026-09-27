@@ -54,9 +54,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/setups/breakout.py`, `src/albrooks/setups/failed_breakout.py`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 9 — Reversal / MTR Engine**
+- [x] **Phase 9 — Reversal / MTR Engine**
   - **Objective**: Major Trend Reversal, Minor Trend Reversal, climax exhaustion, reversal signal bars.
   - **Deliverable**: `src/albrooks/setups/reversal.py`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 10 — Measured Move Engine**
   - **Objective**: Generic MM framework (Leg 1 = Leg 2, Range projection, Channel projection, Gap projection).
