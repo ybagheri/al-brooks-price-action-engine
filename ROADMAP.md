@@ -24,9 +24,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/price_action/bars.py`, `docs/algorithms/BAR_BY_BAR.md`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 3 — Swings, Pivots and Legs**
+- [x] **Phase 3 — Swings, Pivots and Legs**
   - **Objective**: Fractal swing detection, legs, pivots, delayed confirmation without lookahead.
   - **Deliverable**: `src/albrooks/core/swings.py`, `src/albrooks/core/legs.py`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 4 — Market Context Engine**
   - **Objective**: Systematic proxies for TREND, CHANNEL, TRADING_RANGE, BREAKOUT_MODE, TRANSITION.
