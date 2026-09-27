@@ -29,9 +29,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/core/swings.py`, `src/albrooks/core/legs.py`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 4 — Market Context Engine**
+- [x] **Phase 4 — Market Context Engine**
   - **Objective**: Systematic proxies for TREND, CHANNEL, TRADING_RANGE, BREAKOUT_MODE, TRANSITION.
   - **Deliverable**: `src/albrooks/context/market_state.py`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 5 — Price-Action Structures**
   - **Objective**: Trend legs, channels, micro gaps, exhaustion, wedges, pressure.
