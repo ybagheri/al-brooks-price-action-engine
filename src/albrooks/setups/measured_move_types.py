@@ -51,8 +51,10 @@ class MeasuredMoveOrigin:
 class MeasuredMoveEvidence:
     """One contributing factor behind a projection's confidence.
 
-    `weight` is a relative contribution in 0..1, **not** a probability. A
-    projection with three factors of 0.3 each is not "90% likely".
+    `weight` is a relative contribution in 0..1, **not** a probability. Weights rank
+    factors against each other and are not expected to sum to 1, so a projection whose
+    two factors are 0.6 each is not "120% likely". `confidence` is the mean of the
+    weights and inherits exactly that caveat.
     """
 
     code: str
