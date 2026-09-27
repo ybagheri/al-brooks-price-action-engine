@@ -49,9 +49,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/setups/double.py`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 8 — Breakout Engine**
+- [x] **Phase 8 — Breakout Engine**
   - **Objective**: Breakout state machine (NONE -> PENDING -> BREAKOUT -> FOLLOW_THROUGH / FAILED), second-leg traps.
   - **Deliverable**: `src/albrooks/setups/breakout.py`, `src/albrooks/setups/failed_breakout.py`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 9 — Reversal / MTR Engine**
   - **Objective**: Major Trend Reversal, Minor Trend Reversal, climax exhaustion, reversal signal bars.
