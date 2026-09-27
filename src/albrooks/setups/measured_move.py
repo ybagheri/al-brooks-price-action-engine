@@ -439,21 +439,23 @@ def project_inverse(
             b0={"bar": fail_bar, "price": extreme_high, "dir": 1, "confirmed_bar": -1},
         )
 
-    extreme_low = None
+    # `lowest` is the low of the most bearish bar scanned so far; `low_bar` is
+    # that bar's index, and the HIGH of that bar becomes the inverse anchor.
+    lowest: float | None = None
     low_bar = -1
     for s in range(from_bar, to_bar + 1):
-        _, bh, bl, bc = _get_ohlc(bars[s])
-        if extreme_low is None or bl < extreme_low:
-            extreme_low, low_bar = bl, s
+        _, _, bl, bc = _get_ohlc(bars[s])
+        if lowest is None or bl < lowest:
+            lowest, low_bar = bl, s
         if bc < ext:
             break_bar = s
             break
-    if break_bar < 0 or extreme_low is None or low_bar < from_bar or not (extreme_low < ext):
+    if break_bar < 0 or lowest is None or low_bar < from_bar or not (lowest < ext):
         return None
     for t in range(break_bar + 1, to_bar + 1):
         _, _, tl, tc = _get_ohlc(bars[t])
-        if tl < extreme_low:
-            extreme_low, low_bar = tl, t
+        if tl < lowest:
+            lowest, low_bar = tl, t
         if tc > ext:
             fail_bar = t
             break
@@ -471,7 +473,7 @@ def project_inverse(
         reference_price=anchor_high,
         a0={"bar": a0_bar, "price": a0_price, "dir": 1, "confirmed_bar": -1},
         a1={"bar": a1_bar, "price": a1_price, "dir": -1, "confirmed_bar": -1},
-        b0={"bar": fail_bar, "price": extreme_low, "dir": -1, "confirmed_bar": -1},
+        b0={"bar": fail_bar, "price": lowest, "dir": -1, "confirmed_bar": -1},
     )
 
 
@@ -538,13 +540,13 @@ def detect_measured_moves(
 
     for i in range(len(confirmed) - 2):
         a0, a1, b0 = confirmed[i], confirmed[i + 1], confirmed[i + 2]
-        for fn in (project_leg_equality, project_channel):
-            p = fn(a0, a1, b0, atr, config=cfg)
+        for swing_fn in (project_leg_equality, project_channel):
+            p = swing_fn(a0, a1, b0, atr, config=cfg)
             if p is not None:
                 projections.append(p)
 
-    for fn in (project_range, project_gap):
-        p = fn(bars, closed, atr, config=cfg)
+    for bar_fn in (project_range, project_gap):
+        p = bar_fn(bars, closed, atr, config=cfg)
         if p is not None:
             projections.append(p)
 

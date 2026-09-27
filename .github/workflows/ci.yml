@@ -30,6 +30,23 @@ jobs:
       run: |
         ruff check .
 
+    - name: Run mypy type checks
+      run: |
+        mypy
+
     - name: Run Pytest Suite
       run: |
         pytest
+
+    - name: Verify core has no MT5 dependency
+      run: |
+        python scripts/check_no_mt5_dependency.py
+
+    - name: Verify required documentation exists
+      run: |
+        python scripts/check_docs_present.py
+
+    - name: Verify package builds
+      run: |
+        pip install build
+        python -m build --wheel --outdir dist/

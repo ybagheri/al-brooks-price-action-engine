@@ -90,15 +90,25 @@ def detect_breakout_event(
     sh, sl = swing_reference(swings, k)
     c = _get_ohlc(bars[k])[3]
 
-    if (sh is not None and c > sh + tol) or (nb is not None and c > nb[0] + tol):
-        if sh is not None and c > sh + tol:
-            return 1, sh, True
-        return 1, nb[0], False
+    # A swing reference takes precedence over the N-bar reference when both
+    # would qualify, so it is tested first.
+    bull_ref: float | None = None
+    bull_is_swing = False
+    if sh is not None and c > sh + tol:
+        bull_ref, bull_is_swing = sh, True
+    elif nb is not None and c > nb[0] + tol:
+        bull_ref, bull_is_swing = nb[0], False
+    if bull_ref is not None:
+        return 1, bull_ref, bull_is_swing
 
-    if (sl is not None and c < sl - tol) or (nb is not None and c < nb[1] - tol):
-        if sl is not None and c < sl - tol:
-            return -1, sl, True
-        return -1, nb[1], False
+    bear_ref: float | None = None
+    bear_is_swing = False
+    if sl is not None and c < sl - tol:
+        bear_ref, bear_is_swing = sl, True
+    elif nb is not None and c < nb[1] - tol:
+        bear_ref, bear_is_swing = nb[1], False
+    if bear_ref is not None:
+        return -1, bear_ref, bear_is_swing
 
     return 0, 0.0, False
 

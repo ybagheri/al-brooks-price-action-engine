@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence as _SequenceABC
 from dataclasses import dataclass
 from typing import Any, Iterator, Sequence
 
@@ -90,8 +91,13 @@ class Bar:
 
 
 @dataclass(frozen=True)
-class BarSeries:
-    """Immutable sequence of closed bars with metadata and forward indexing (0 = oldest)."""
+class BarSeries(_SequenceABC):
+    """Immutable sequence of closed bars with metadata and forward indexing (0 = oldest).
+
+    Registers as a `collections.abc.Sequence` of `Bar`, so it can be passed
+    anywhere a `Sequence[Bar]` is accepted. `Sequence` is covariant, which is why
+    a `BarSeries` is a valid `Sequence[Bar | dict[str, Any]]`.
+    """
 
     bars: tuple[Bar, ...]
     symbol: str = "GENERIC"
