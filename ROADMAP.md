@@ -69,9 +69,15 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/setups/fading_measured_move.py`, `docs/algorithms/FADING_MEASURED_MOVE.md`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 12 — General Setup Registry**
+- [x] **Phase 12 — General Setup Registry**
   - **Objective**: Plugin-style setup detector protocol, setup registry.
   - **Deliverable**: `src/albrooks/setups/registry.py`, `src/albrooks/setups/base.py`, tests.
+  - **Status**: Completed. `SetupContext` is the common denominator for the eleven
+    detectors and `adapt()` bridges their five different signatures, so none of
+    them was rewritten. `docs/algorithms/SETUP_ENGINE.md` documents why the
+    registry does not rank, and §9 of the architecture doc is asserted as a test
+    rather than left as a comment. The registry does not yet *replace* the
+    analyzer's direct detector calls; that is Phase 16's pipeline work.
 
 - [ ] **Phase 13 — Setup Evidence Model**
   - **Objective**: Structured multi-factor evidence, weights, warnings, confidence heuristics.

@@ -84,6 +84,52 @@ been statistically validated, and no performance claim is made.
   bar missing a price field now raises a `KeyError` naming the field and listing
   the keys supplied, instead of a bare one.
 
+### Added
+- **Phase 12** — `src/albrooks/setups/base.py` and `registry.py`: a
+  `SetupContext`, a one-method `SetupDetector` protocol, a thin `SetupFinding`
+  wrapper, an `adapt()` bridge, and a `SetupRegistry` that runs whichever
+  detectors are registered.
+- The eleven detectors from Phases 2-11 keep the signatures their own phases
+  defined. `find_major_double_top` still reads only swings and never sees a bar,
+  and the two list-returning detectors are still adapted rather than rewritten.
+- `SetupRegistry.run()` distinguishes a detector that **ran and found nothing**
+  (`executed`) from one that **could not be measured** (`skipped`, with
+  `NO_ATR` / `NO_CLOSED_BARS`). Every detector gates on ATR multiples, so without
+  that split a volatility-free series would return a clean, plausible "no
+  structure here" for a market that was never examined.
+- A detector that raises is recorded as a `DetectorFailure` and the run
+  continues, rather than one broken detector taking down the ten beside it.
+  `strict=True` re-raises for callers who would rather stop than receive a
+  partial answer.
+- `docs/algorithms/SETUP_ENGINE.md` — the setup-engine specification, including
+  why the registry deliberately does not rank.
+- `tests/unit/test_phase12_setup_registry.py` — 65 tests pinning the properties
+  `ARCHITECTURE.md` §9 depends on, rather than the behaviour of any one detector.
+  The claim that a detector is addable without editing the analyzer is asserted
+  as a test (`test_a_detector_can_be_replaced_without_editing_the_analyzer`)
+  instead of left as a comment, and the §6 closed-bar invariant is re-asserted
+  through the registry as well as the pipeline.
+
+### Changed
+- The `present=` hook on the fading-measured-move adapter is now documented as a
+  statement of intent rather than a fix. Writing the Phase 12 tests showed the
+  claim in its docstring was wrong: the default rule is
+  `payload.get("found", True)`, and `FadingSetup.to_dict()` has no `found` key
+  at all, so the default already treats a terminal fade as a finding. The hook
+  is kept — it prevents a future `found` field from silently dropping terminal
+  fades — and a test now pins the default's behaviour so a future change to it
+  has to be made deliberately. The inaccurate claim in the `base.py` module
+  docstring was corrected to match.
+- The first version of the registry's closed-bar test was **vacuous** and is
+  recorded here because it is the kind of gap this project's own testing policy
+  is meant to catch. It compared two near-empty finding lists built from a
+  perfectly regular zigzag series, and still passed with lookahead deliberately
+  injected into the measured-move adapter. The fixture is now a
+  rally/pullback/rally series cut at bar 59 of 80, where the measured-move and
+  fading-measured-move detectors both actually fire, and the injected lookahead
+  is caught. `test_the_closed_bar_test_is_not_vacuous` asserts the fixture
+  produces those findings, so the comparison cannot quietly become empty again.
+
 ### Known limitations
 - The FM exhaustion gate binds more loosely than the specification's wording
   suggests. A bar touching a measured-move target is by construction the extreme
@@ -92,6 +138,13 @@ been statistically validated, and no performance claim is made.
   happens there. The gate is kept as specified; the interaction is documented in
   `docs/algorithms/FADING_MEASURED_MOVE.md` §5.2 and pinned by a test, because
   removing the gate would otherwise not fail any test.
+- `Analyzer.analyze()` still calls its detectors directly rather than reading the
+  registry. Phase 12's claim is that a detector can be *added* without editing
+  the analyzer, and `build_default_registry()` satisfies that; making the
+  pipeline consume the registry is Phase 16's work.
+- `DEFAULT_REGISTRY` is a process-wide mutable global. `build_default_registry()`
+  is preferred in library code and tests, because a shared mutable global makes
+  test order matter. A test pins that the two are independent.
 
 ## [0.1.0] — 2026-09-27
 
