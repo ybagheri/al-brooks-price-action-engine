@@ -39,9 +39,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/core/structures.py`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 6 — H1/H2 and L1/L2 Engine**
+- [x] **Phase 6 — H1/H2 and L1/L2 Engine**
   - **Objective**: Systematic pullback counting, candidate/provisional/confirmed/invalidated states.
   - **Deliverable**: `src/albrooks/setups/h1_h2.py`, `src/albrooks/setups/l1_l2.py`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 7 — Double Tops / Double Bottoms**
   - **Objective**: Major double tops/bottoms, micro double tops/bottoms, double tests.
