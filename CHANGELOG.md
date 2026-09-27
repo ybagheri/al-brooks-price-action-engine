@@ -130,6 +130,17 @@ been statistically validated, and no performance claim is made.
   is caught. `test_the_closed_bar_test_is_not_vacuous` asserts the fixture
   produces those findings, so the comparison cannot quietly become empty again.
 
+### Fixed
+- `pyproject.toml` declared the licence the deprecated way
+  (`license = {file = "LICENSE"}` plus the `License :: OSI Approved :: MIT
+  License` trove classifier). Both are removed in favour of the SPDX
+  `license = "MIT"` string and `license-files = ["LICENSE"]`, and the build
+  requirement is raised to `setuptools>=77.0`, which is what understands that
+  spelling. This was verified by running the build rather than by reading the
+  warning: the previous form emitted a deprecation notice with a hard deadline of
+  **2027-Feb-18**, after which the package would no longer build at all. The
+  wheel now reports `License-Expression: MIT` and bundles the `LICENSE` file.
+
 ### Known limitations
 - The FM exhaustion gate binds more loosely than the specification's wording
   suggests. A bar touching a measured-move target is by construction the extreme
