@@ -15,9 +15,9 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `docs/FM_INDICATOR_AUDIT.md`.
   - **Status**: Completed.
 
-- [ ] **Phase 1 — Architecture Foundation**
+- [x] **Phase 1 — Architecture Foundation**
   - **Objective**: Package metadata, configuration, normalized bar representations, serialization, core models, CI workflow.
-  - **Status**: In Progress.
+  - **Status**: Completed.
 
 - [ ] **Phase 2 — Bar-by-Bar Engine**
   - **Objective**: Objective per-bar features (body, wicks, close location, doji, inside/outside, barbwire, overlap, pressure).
