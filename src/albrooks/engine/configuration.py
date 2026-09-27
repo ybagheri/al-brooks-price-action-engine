@@ -50,6 +50,14 @@ class AnalyzerConfig:
     min_pushes: int = 3
     use_wedge: bool = True
 
+    # Measured Move (MM)
+    enable_range_mm: bool = True
+    range_lookback: int = 50
+    enable_channel_mm: bool = True
+    enable_gap_mm: bool = True
+    min_gap_atr: float = 1.0
+    enable_inverse_mm: bool = True
+
     # Fading Measured Move (FM)
     fm_approach_atr: float = 1.0
     fm_tol_atr: float = 0.25

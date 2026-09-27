@@ -59,9 +59,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/setups/reversal.py`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 10 — Measured Move Engine**
-  - **Objective**: Generic MM framework (Leg 1 = Leg 2, Range projection, Channel projection, Gap projection).
-  - **Deliverable**: `src/albrooks/setups/measured_move.py`, tests.
+- [x] **Phase 10 — Measured Move Engine**
+  - **Objective**: Generic MM framework (Leg 1 = Leg 2, Range projection, Channel projection, Gap projection, Inverse projection).
+  - **Deliverable**: `src/albrooks/setups/measured_move.py`, `docs/algorithms/MEASURED_MOVE.md`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 11 — Fading Measured Move (FM)**
   - **Objective**: Port and refine FM lifecycle (PROJECTED, POTENTIAL, DEVELOPING, CONFIRMED, COMPLETED, INVALIDATED).
