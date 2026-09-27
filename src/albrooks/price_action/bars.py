@@ -1,4 +1,24 @@
-"""Bar-by-bar price action feature calculation engine."""
+"""Bar-by-bar price action feature calculation.
+
+This module **composes** the focused price-action modules rather than
+recomputing their logic inline. It owns the per-bar feature record
+(`BarFeatures`), the ATR series, and the label taxonomy -- nothing else.
+
+| Concern | Owner |
+|---|---|
+| overlap, inside/outside, barbwire, inside runs | `price_action.overlap` |
+| consecutive runs, strong-bar pressure | `price_action.pressure` |
+| micro gaps | `price_action.gaps` |
+| climax / stall | `price_action.climaxes` |
+| range contraction | `price_action.wedges` |
+
+`pair_overlap` is re-exported from `price_action.overlap` for backward
+compatibility.
+
+Classification: the raw measurements are `OBJECTIVE`; the labels and the
+`HEURISTIC` thresholds behind them are documented in
+`docs/algorithms/BAR_BY_BAR.md`.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +27,17 @@ from typing import Any, Sequence
 
 from albrooks.core.bars import Bar, BarSeries
 from albrooks.engine.configuration import AnalyzerConfig
+from albrooks.price_action.climaxes import measure_bar
+from albrooks.price_action.gaps import detect_gap
+from albrooks.price_action.overlap import (
+    count_inside_run,
+    detect_barbwire,
+    is_inside_bar,
+    is_outside_bar,
+    pair_overlap,
+)
+from albrooks.price_action.pressure import consecutive_run, count_pressure
+from albrooks.price_action.wedges import is_tightening
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,19 +105,6 @@ def _dir(b: Bar | dict[str, Any]) -> int:
     return 0
 
 
-def pair_overlap(a: Bar | dict[str, Any], b: Bar | dict[str, Any]) -> float:
-    ao, ah, al, ac = _get_ohlc(a)
-    bo, bh, bl, bc = _get_ohlc(b)
-    ra, rb = ah - al, bh - bl
-    m = min(ra, rb)
-    if m <= 0.0:
-        return 0.0
-    top = min(max(ac, ao), max(bc, bo))
-    bot = max(min(ac, ao), min(bc, bo))
-    ov = top - bot
-    return ov / m if ov > 0.0 else 0.0
-
-
 def calculate_atr_series(bars: Sequence[Bar | dict[str, Any]], period: int = 14) -> list[float]:
     n = len(bars)
     if n == 0:
@@ -141,11 +159,16 @@ def analyze_bar(
     lo_t = min(c, o) - low_v
     is_doji = br < cfg.doji_max_body
 
-    is_big = False
-    is_small = False
-    if atr > 0:
-        is_big = rg >= cfg.big_bar_atr * atr
-        is_small = rg < cfg.small_bar_atr * atr
+    # Bar character is measured once, in one place, by `price_action.climaxes`.
+    char = measure_bar(
+        b,
+        atr=atr,
+        big_bar_atr=cfg.big_bar_atr,
+        small_bar_atr=cfg.small_bar_atr,
+        doji_max_body=cfg.doji_max_body,
+    )
+    is_big = char.is_climax
+    is_small = atr > 0 and rg < cfg.small_bar_atr * atr
 
     is_strong_bull = d > 0 and cp >= cfg.strong_close_pct and br >= cfg.min_body_pct
     is_strong_bear = d < 0 and (1.0 - cp) >= cfg.strong_close_pct and br >= cfg.min_body_pct
@@ -153,93 +176,45 @@ def analyze_bar(
     is_inside = False
     is_outside = False
     overlap = 0.0
-    gap_up = False
-    gap_down = False
 
     if idx - 1 >= 0:
         prev = bars[idx - 1]
-        _, ph, pl, _ = _get_ohlc(prev)
-        is_inside = h <= ph and low_v >= pl
-        is_outside = (h >= ph and low_v <= pl) and (h > ph or low_v < pl)
+        is_inside = is_inside_bar(b, prev)
+        is_outside = is_outside_bar(b, prev)
         overlap = pair_overlap(b, prev)
-        gap_up = low_v > ph
-        gap_down = h < pl
 
-    # Consecutive run
-    consecutive = 0
-    if not is_doji and d != 0:
-        n = 0
-        for i in range(idx, -1, -1):
-            if i > last_closed:
-                continue
-            if _dir(bars[i]) != d:
-                break
-            n += 1
-            if n >= 20:
-                break
-        consecutive = n if d > 0 else -n
+    gap = detect_gap(bars, idx)
+    gap_up = gap.direction == 1
+    gap_down = gap.direction == -1
 
-    # Inside run count
-    ii_count = 0
-    if idx > 0:
-        n = 0
-        for i in range(idx, 0, -1):
-            if i > last_closed:
-                continue
-            curr_b = bars[i]
-            prev_b = bars[i - 1]
-            _, ch, cl, _ = _get_ohlc(curr_b)
-            _, prh, prl, _ = _get_ohlc(prev_b)
-            if ch <= prh and cl >= prl:
-                n += 1
-            else:
-                break
-        ii_count = n
+    consecutive = consecutive_run(
+        bars,
+        idx,
+        last_closed,
+        doji_max_body=cfg.doji_max_body,
+    )
+    ii_count = count_inside_run(bars, idx, last_closed)
 
-    # Cumulative pressure over lookback
-    pb, pe = 0, 0
-    lookback = max(1, cfg.pressure_lookback)
-    for i in range(idx, max(-1, idx - lookback), -1):
-        if i < 0 or i > last_closed:
-            continue
-        cur = bars[i]
-        co, ch, cl, cc = _get_ohlc(cur)
-        crg = _range(cur)
-        cdir = _dir(cur)
-        ccp = (cc - cl) / crg
-        cbr = _body(cur) / crg
-        if cdir > 0 and ccp >= cfg.strong_close_pct and cbr >= cfg.min_body_pct:
-            pb += 1
-        if cdir < 0 and (1.0 - ccp) >= cfg.strong_close_pct and cbr >= cfg.min_body_pct:
-            pe += 1
+    pb, pe = count_pressure(
+        bars,
+        idx,
+        last_closed,
+        lookback=cfg.pressure_lookback,
+        strong_close_pct=cfg.strong_close_pct,
+        min_body_pct=cfg.min_body_pct,
+    )
 
-    # Barbwire detection
-    w_bars = max(3, cfg.barbwire_bars)
-    ovn = 0
-    any_doji = False
-    for i in range(idx, max(-1, idx - w_bars), -1):
-        if i <= 0 or i > last_closed:
-            continue
-        if pair_overlap(bars[i], bars[i - 1]) >= cfg.overlap_ratio:
-            ovn += 1
-        crg = _range(bars[i])
-        cbd = _body(bars[i])
-        if cbd / crg < cfg.doji_max_body:
-            any_doji = True
-    tail = idx - w_bars
-    if 0 <= tail <= last_closed:
-        trg = _range(bars[tail])
-        tbd = _body(bars[tail])
-        if tbd / trg < cfg.doji_max_body:
-            any_doji = True
-    barbwire = ovn >= cfg.barbwire_min_overlap and any_doji
+    barbwire = detect_barbwire(
+        bars,
+        idx,
+        last_closed,
+        window=cfg.barbwire_bars,
+        min_overlap=cfg.barbwire_min_overlap,
+        overlap_ratio=cfg.overlap_ratio,
+        doji_max_body=cfg.doji_max_body,
+    )
 
-    # Tightening / range compression
-    tightening = False
-    if idx - 4 >= 0:
-        window_ranges = sorted(_range(bars[i]) for i in range(idx - 4, idx))
-        med = (window_ranges[1] + window_ranges[2]) * 0.5
-        tightening = (h - low_v) < med
+    tightening = is_tightening(bars, idx)
 
     label = "BAR"
     if is_strong_bull:
