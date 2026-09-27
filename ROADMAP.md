@@ -2,6 +2,15 @@
 
 This roadmap documents the implementation progress across all 23 development phases.
 
+It answers three separate questions, and each is kept distinct because they are
+different claims:
+
+| Section | Question |
+|---|---|
+| [Phase Checklist](#phase-checklist) | What is built and verified? |
+| [Deliberately Not Built](#deliberately-not-built) | What will not be built, and why? |
+| `CHANGELOG.md` → *Known limitations* | What is built but imperfect? |
+
 ## Status Legend
 - `[x]` Completed & Verified
 - `[ ]` In Progress / Pending
@@ -131,3 +140,93 @@ This roadmap documents the implementation progress across all 23 development pha
 - [ ] **Phase 23 — Comprehensive Bilingual Documentation**
   - **Objective**: Complete English and Persian documentation suite (`README.md`, `README_FA.md`, algorithm specs).
   - **Deliverable**: `docs/`, `README.md`, `README_FA.md`.
+
+---
+
+## Deliberately Not Built
+
+The other two lists above say what *is* done and what *remains*. This one records
+what is **not going to be built**, and why — because a project whose premise is
+honest self-reporting should not leave its exclusions implicit either.
+
+Each entry states the thing, the reason, and what would have to change.
+
+### The engine will not rank competing setups
+
+A measured-move target and a reversal leg count are different kinds of claim.
+Picking between them is a *trade decision*, and this project has not earned it:
+nothing here has been validated against outcomes, so any ordering would be a
+preference dressed as an analysis.
+
+- The registry returns findings in **registration order**, which is deterministic
+  and is not a ranking (`docs/algorithms/SETUP_ENGINE.md` §5).
+- `evaluation.compare()` orders bundles **for display only**; nothing downstream
+  may treat its order as a recommendation
+  (`docs/algorithms/EVIDENCE_MODEL.md` §6).
+
+*Changes when:* the decision engine (Phase 15) exists, and is where the comparison
+belongs.
+
+### No score in this project is a probability
+
+`CONCEPT_TAXONOMY.md` §5 classifies no value here as `STATISTICAL`, because
+nothing has been statistically validated. The evidence score is a mean of
+observed factor weights; `0.8` does not mean "right 80% of the time".
+`EvidenceScore.to_dict()` carries `is_probability: false` so downstream consumers
+are told rather than left to know.
+
+*Changes when:* a validation phase (19/20) calibrates against historical data.
+Per the taxonomy, the method, sample and confidence intervals must be documented
+there **before** any of these labels may change.
+
+### The pipeline will not infer a trade
+
+`decision` is always `NO_TRADE` with the reason `DECISION_ENGINE_NOT_IMPLEMENTED`,
+and `AnalysisResult.layers` marks `trade_plans` and `decision` as not run, so
+`unimplemented_layers` is a fact rather than an inference from an empty list.
+
+*Changes when:* Phases 14 and 15 land.
+
+### Declared but deliberately unwired configuration
+
+Six `AnalyzerConfig` keys are consumed by **nothing** today. They are Phase 15's
+`Decision Engine & Gating` block, declared ahead of the engine that owns them:
+
+| Key | Default | Owner |
+|---|---|---|
+| `enable_decision` | `True` | Phase 15 |
+| `min_score` | `40.0` | Phase 15 (Phase 13 supplies the evidence score) |
+| `min_rr` | `1.0` | Phase 15 |
+| `max_late_atr` | `0.50` | Phase 15 |
+| `conflict_ppts` | `10` | Phase 15 |
+| `max_failed_attempts` | `2` | Phase 15 |
+
+> **Setting any of these has no effect today.** They are listed here so that a
+> user tuning `min_rr` is not left to wonder why nothing changed. They were kept
+> rather than deleted because the values are documented defaults for a specified
+> layer, not invented as they went.
+
+*Changes when:* Phase 15 reads them.
+
+### `engine.state.NOT_IMPLEMENTED` is unused
+
+The constant `NOT_IMPLEMENTED = "NOT_IMPLEMENTED_YET"` is defined and referenced
+nowhere. Its stated purpose — distinguishing "not detected" from "never looked
+for" — is actually served by the `layers` map, and `unimplemented_layers` reads
+that. The constant is retained as a reserved marker, not because it is live.
+
+*Changes when:* something needs a per-*value* not-implemented marker, as opposed
+to the per-*layer* one already implemented.
+
+### `examples/` is empty and untracked
+
+The directory exists on the working machine but **contains no files**, so it does
+not survive a fresh clone. Phase 22 owns `examples/llm_analysis.py`. The 0.1.0
+changelog listed missing examples as a known gap, and that gap is still open.
+
+### Not started at all
+
+`src/albrooks/decision/`, `src/albrooks/trade/`, `src/albrooks/adapters/` and
+`src/albrooks/serialization/` each contain only an empty `__init__.py`. They are
+placeholders for Phases 14, 15, 21 and 22, not partial implementations.
+

@@ -37,6 +37,28 @@ Work is in progress. See [ROADMAP.md](ROADMAP.md) for per-phase status and
 **Implementation status is not trading validation.** See
 [Limitations](#limitations) — no performance claim is made anywhere in this project.
 
+### What is deliberately not built
+
+Some things in this project are **absent on purpose**, not merely unfinished.
+Those are recorded in
+[ROADMAP.md → Deliberately Not Built](ROADMAP.md#deliberately-not-built) rather
+than left implicit. The short version:
+
+- **No ranking of competing setups.** A measured-move target and a reversal leg
+  count are different kinds of claim; choosing between them is a trade decision
+  this project has not earned. Findings come back in registration order, and
+  `evaluation.compare()` is for display only.
+- **No score is a probability.** The evidence score is a mean of observed factor
+  weights. `0.8` does not mean "right 80% of the time" — nothing here has been
+  validated against outcomes.
+- **No inferred trades.** `Analyzer.analyze()` always reports
+  `NO_TRADE` / `DECISION_ENGINE_NOT_IMPLEMENTED`, and marks the `trade_plans` and
+  `decision` layers as not run so `unimplemented_layers` is a fact.
+- **Six `AnalyzerConfig` keys have no effect yet** (`min_score`, `min_rr`,
+  `max_late_atr`, `conflict_ppts`, `max_failed_attempts`, `enable_decision`).
+  They belong to the decision engine; setting them today changes nothing. See the
+  ROADMAP section for the full table.
+
 ## Architecture
 
 ```text
@@ -146,6 +168,13 @@ restored = AnalyzerConfig.from_dict(payload)
 ```
 
 Defaults are documented per section in `docs/algorithms/`.
+
+> **Not every key is wired yet.** Six keys in the `Decision Engine & Gating`
+> block — `enable_decision`, `min_score`, `min_rr`, `max_late_atr`,
+> `conflict_ppts`, `max_failed_attempts` — are consumed by nothing today, because
+> the decision engine does not exist. They appear in `to_dict()` and setting them
+> changes nothing. See
+> [ROADMAP.md → Deliberately Not Built](ROADMAP.md#deliberately-not-built).
 
 ## Non-repaint policy
 

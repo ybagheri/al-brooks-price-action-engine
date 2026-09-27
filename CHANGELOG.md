@@ -174,6 +174,33 @@ been statistically validated, and no performance claim is made.
   number is rather than left to know. Nothing in this project has been
   calibrated against outcomes, so no rate can be derived from it.
 
+### Documentation
+- `ROADMAP.md` gained a **Deliberately Not Built** section. The roadmap already
+  recorded what is done and what remains, but the third category — what is absent
+  *on purpose* — existed only as scattered asides in individual spec files, which
+  is a poor fit for a project whose premise is honest self-reporting. Each entry
+  now states the thing, the reason, and what would have to change.
+- Recorded there, every claim verified against the source rather than assumed:
+  - The setup registry and `evaluation.compare()` do not rank competing setups.
+  - No score in this project is a probability.
+  - The pipeline never infers a trade (`NO_TRADE` /
+    `DECISION_ENGINE_NOT_IMPLEMENTED`).
+  - The six `AnalyzerConfig` keys consumed by nothing — `enable_decision`,
+    `min_score`, `min_rr`, `max_late_atr`, `conflict_ppts`,
+    `max_failed_attempts`. Each was confirmed to have zero references outside
+    `configuration.py` in both `src/` and `tests/`. A user tuning `min_rr` today
+    gets no effect and previously had no way to learn why.
+  - `engine.state.NOT_IMPLEMENTED` is defined and never used; the job it
+    describes is actually done by the `layers` map and `unimplemented_layers`.
+  - `examples/` is empty and untracked, so it does not survive a fresh clone.
+    Phase 22 owns `examples/llm_analysis.py`, and the 0.1.0 known-gap entry for
+    missing examples is still open.
+  - `decision/`, `trade/`, `adapters/` and `serialization/` hold only empty
+    `__init__.py` placeholders — not partial implementations.
+- `README.md` gained a *What is deliberately not built* summary, and its
+  Configuration section now warns that not every key is wired yet. Both link to
+  the ROADMAP section.
+
 ### Known limitations
 - `INVALIDATED` pullbacks and `FAILED` breakouts are **excluded** by their
   adapters rather than scored low. "Scored badly" and "not a candidate" are
