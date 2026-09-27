@@ -44,9 +44,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/setups/h1_h2.py`, `src/albrooks/setups/l1_l2.py`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 7 — Double Tops / Double Bottoms**
+- [x] **Phase 7 — Double Tops / Double Bottoms**
   - **Objective**: Major double tops/bottoms, micro double tops/bottoms, double tests.
   - **Deliverable**: `src/albrooks/setups/double.py`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 8 — Breakout Engine**
   - **Objective**: Breakout state machine (NONE -> PENDING -> BREAKOUT -> FOLLOW_THROUGH / FAILED), second-leg traps.
