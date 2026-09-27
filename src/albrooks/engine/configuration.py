@@ -64,6 +64,20 @@ class AnalyzerConfig:
     fm_over_atr: float = 0.50
     fm_require_ft: bool = False
     fm_enable_inverse: bool = True
+    #: Bars a projection may be tracked before it expires as INVALIDATED.
+    fm_max_bars_forward: int = 100
+    #: Signal-bar body must be at least this share of the bar's range.
+    fm_min_body: float = 0.30
+    #: Signal-bar close must sit in the extreme share of its range.
+    fm_close_pct: float = 0.50
+    #: Adverse wick may not exceed this share of the signal bar's range.
+    fm_max_wick: float = 0.60
+    #: Require the signal bar to engulf the prior bar's body.
+    fm_require_engulf: bool = False
+    #: Most projections tracked at once; older ones are dropped.
+    fm_max_active: int = 20
+    #: Projections are seeded from the most recent confirmed swing triples.
+    fm_recent_swings: int = 8
 
     # Decision Engine & Gating
     enable_decision: bool = True

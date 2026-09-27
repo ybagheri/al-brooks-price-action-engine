@@ -28,9 +28,9 @@ Work is in progress. See [ROADMAP.md](ROADMAP.md) for per-phase status and
 | H1/H2, L1/L2 | Implemented, with lifecycle states |
 | Doubles, breakouts, reversals | Implemented |
 | Measured moves | Implemented, with evidence and confidence |
+| Fading measured moves | Implemented — full lifecycle |
 | `Analyzer.analyze()` pipeline | Wired — all layers above, closed-bar only |
-| Fading measured moves, evidence model | Not started |
-| Trade plans, decisions | Not started |
+| Evidence model, trade plans, decisions | Not started |
 | MQL5 parity, MT5 adapter | Not started |
 
 **Implementation status is not trading validation.** See

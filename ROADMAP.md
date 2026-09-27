@@ -64,9 +64,10 @@ This roadmap documents the implementation progress across all 23 development pha
   - **Deliverable**: `src/albrooks/setups/measured_move.py`, `docs/algorithms/MEASURED_MOVE.md`, tests.
   - **Status**: Completed.
 
-- [ ] **Phase 11 — Fading Measured Move (FM)**
+- [x] **Phase 11 — Fading Measured Move (FM)**
   - **Objective**: Port and refine FM lifecycle (PROJECTED, POTENTIAL, DEVELOPING, CONFIRMED, COMPLETED, INVALIDATED).
-  - **Deliverable**: `src/albrooks/setups/fading_measured_move.py`, tests.
+  - **Deliverable**: `src/albrooks/setups/fading_measured_move.py`, `docs/algorithms/FADING_MEASURED_MOVE.md`, tests.
+  - **Status**: Completed.
 
 - [ ] **Phase 12 — General Setup Registry**
   - **Objective**: Plugin-style setup detector protocol, setup registry.

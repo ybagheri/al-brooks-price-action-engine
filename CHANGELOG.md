@@ -11,6 +11,21 @@ been statistically validated, and no performance claim is made.
 ## [Unreleased]
 
 ### Added
+- **Phase 11** — `src/albrooks/setups/fading_measured_move.py`: the Fading
+  Measured Move lifecycle, `PROJECTED -> POTENTIAL -> DEVELOPING -> CONFIRMED
+  -> COMPLETED` with `-> INVALIDATED` from any state. Consumes
+  `MeasuredMoveProjection` and never the reverse.
+- `docs/algorithms/FADING_MEASURED_MOVE.md` — the FM specification, including
+  the transition order and its justification.
+- `AnalyzerConfig` gained the FM lifecycle keys: `fm_max_bars_forward`,
+  `fm_min_body`, `fm_close_pct`, `fm_max_wick`, `fm_require_engulf`,
+  `fm_max_active` and `fm_recent_swings`. The `fm_*` flags that already existed
+  were previously declared but consumed by nothing.
+- `FadingSetup.touched` and `.is_active` distinguish "approached the target" from
+  "reached it", and "still progressing" from "finished". A projection may also
+  step *backwards* from `DEVELOPING` to `POTENTIAL` when price leaves the target
+  zone, which is why the lifecycle reports where price is rather than the
+  furthest point it reached.
 - Repository-level documentation: `README.md`, `README_FA.md`, `SOURCES.md`,
   `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`, `CHANGELOG.md`.
 - `docs/algorithms/MEASURED_MOVES.md` — measured-move specification, including
@@ -68,6 +83,15 @@ been statistically validated, and no performance claim is made.
   documented entry point — refused input the rest of the engine read happily. A
   bar missing a price field now raises a `KeyError` naming the field and listing
   the keys supplied, instead of a bare one.
+
+### Known limitations
+- The FM exhaustion gate binds more loosely than the specification's wording
+  suggests. A bar touching a measured-move target is by construction the extreme
+  of the recent range, so the `overshoot` exhaustion condition is almost always
+  satisfied on the touching bar, and `POTENTIAL -> DEVELOPING` nearly always
+  happens there. The gate is kept as specified; the interaction is documented in
+  `docs/algorithms/FADING_MEASURED_MOVE.md` §5.2 and pinned by a test, because
+  removing the gate would otherwise not fail any test.
 
 ## [0.1.0] — 2026-09-27
 
