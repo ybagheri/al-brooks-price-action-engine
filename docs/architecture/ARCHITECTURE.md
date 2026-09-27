@@ -106,10 +106,62 @@ their `confirmed_bar_index`. This gives one invariant the test suite enforces:
 > The analysis for a given bar index is **identical** whether or not later bars
 > exist.
 
-See `docs/algorithms/MEASURED_MOVES.md` §4 and
-`docs/algorithms/NON_REPAINT_CONTRACT.md` *(planned)*.
+See `docs/algorithms/MEASURED_MOVES.md` §5 for the enforced implementation, and
+`docs/algorithms/NON_REPAINT_CONTRACT.md` *(planned)* for the full specification.
+`tests/unit/test_engine_pipeline.py` asserts the invariant above across every layer
+of the pipeline at once, not only per detector.
 
-## 7. Facts vs interpretation
+## 7. The pipeline
+
+`Analyzer.analyze()` is the only orchestrator. It is deliberately thin: each stage
+is a pure function that already exists and is tested on its own, and the pipeline
+only decides **order** and **which index to pass**.
+
+```text
+bars ──► ATR ──► bar features ──► swings ──► legs ──► pivots
+                       │                         │
+                       └──────────┬──────────────┘
+                                  ▼
+                            market state, trend metrics, channels
+                                  │
+        ┌─────────────────────────┼─────────────────────────┐
+        ▼                         ▼                         ▼
+  measured moves             pullbacks                breakouts, reversals
+```
+
+Two decisions are worth stating, because both are places where a plausible-looking
+implementation would be wrong.
+
+**ATR is computed first and gates the whole run.** Almost every threshold is
+expressed in ATR multiples, and a detector handed `atr=0` returns "nothing found"
+rather than raising. A pipeline that passed zero onward would return a clean, empty,
+entirely plausible result describing a market with no structure. So the run is
+refused, and the reason is reported.
+
+**`last_closed` is threaded to every stage, and the value used is reported.** The
+invariant is that analysis for a given index is identical whether or not later bars
+exist. It is asserted at the pipeline level, not only per detector, because a
+mis-wired stage — right detector, wrong index, or a series that includes the future
+— passes every one of its own unit tests. That is exactly the class of bug this
+layer is responsible for catching, and `bar_features` leaking future bars was a
+real instance of it.
+
+### Degenerate input is reported, not hidden
+
+A series with no bars, or with no volatility, produces a result whose
+`market_state.reason` and `decision.reason` say so, with every layer marked as not
+run. Returning empty lists would be a claim about a market that was never examined.
+`AnalysisResult.layers` records what actually ran, so `unimplemented_layers` is a
+fact rather than an inference from an empty list.
+
+### What the pipeline does not do
+
+It reports structure, context, and setup candidates. It does not rank competing
+setups and it does not decide. `decision` is always `NO_TRADE` with the reason
+`DECISION_ENGINE_NOT_IMPLEMENTED`, because the decision engine is Phase 15 and an
+inferred BUY/SELL here would be a claim this codebase has not earned.
+
+## 8. Facts vs interpretation
 
 Not every layer is equally objective. See
 [CONCEPT_TAXONOMY.md](CONCEPT_TAXONOMY.md) for the full classification.
@@ -124,7 +176,7 @@ The short version:
 - **Nothing is `STATISTICAL`, because nothing has been validated.** No score in
   this project is a probability.
 
-## 8. Extensibility
+## 9. Extensibility
 
 New setups must be addable **without modifying the central analyzer.** The
 registry pattern (`albrooks.setups.registry`) is designed so that registering a
@@ -132,14 +184,14 @@ detector is a one-line change and the analyzer is untouched. If adding a
 detector requires editing `engine/analyzer.py`, the architecture has been
 violated and that should be raised rather than worked around.
 
-## 9. Serialization
+## 10. Serialization
 
 Every domain model is an immutable, slotted dataclass with a `to_dict()`, so
 the whole analysis is JSON-serializable without reaching into internals. This is
 what makes the library usable from an AI agent, a dashboard, or a REST API
 without exposing Python object graphs.
 
-## 10. Configuration
+## 11. Configuration
 
 Every heuristic threshold lives on `AnalyzerConfig` — never as a literal buried
 in a detector. Configuration round-trips through `to_dict()` / `from_dict()`.
@@ -148,7 +200,7 @@ The reason: when a threshold is wrong, the fix should be a config change, not a
 code change. And when a result is surprising, the user needs to be able to see
 and change every value that produced it.
 
-## 11. Testing strategy
+## 12. Testing strategy
 
 | Category | What it protects |
 |---|---|
@@ -162,7 +214,7 @@ and change every value that produced it.
 Tests are deterministic and never depend on live market data. A test that only
 asserts "does not raise" is not a test — see [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
-## 12. Anti-goals
+## 13. Anti-goals
 
 Stated explicitly, because they are the most reliable way to keep this project
 honest:

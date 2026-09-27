@@ -24,6 +24,19 @@ been statistically validated, and no performance claim is made.
   of the stored evidence weights, so the scalar is always reproducible from its
   own evidence. It is **not** a probability or a win rate; nothing here has been
   calibrated against outcomes.
+- **`Analyzer.analyze()` is wired** (Phase 1 pipeline). It now runs bar features,
+  ATR, swings, legs, pivots, market state, trend metrics, channels, measured
+  moves, H1/H2 and L1/L2 pullbacks, breakouts, and both reversal directions,
+  and returns real analysis instead of a hard-coded placeholder.
+- `Analyzer.analyze(..., last_closed=N)` analyses **as of** bar `N`. Everything
+  derived is read from bars `0..N` only, and the value used is reported in
+  `AnalysisResult.last_closed_bar`.
+- `AnalysisResult` gained the specification's `trends`, `channels`, `pullbacks`,
+  `breakouts`, `reversals` and `evidence` fields, plus `last_closed_bar` and a
+  `layers` map recording which layers actually ran.
+- `AnalysisResult.unimplemented_layers` lists the layers a result makes no claim
+  about, read from `layers` rather than inferred from an empty list — "nothing
+  found" and "not implemented" are different statements.
 
 ### Changed
 - `docs/algorithms/MEASURED_MOVE.md` renamed to `MEASURED_MOVES.md` to match the
@@ -35,6 +48,8 @@ been statistically validated, and no performance claim is made.
   so a new family cannot skip the evidence model by accident. The `CHANNEL`
   shallow-pullback bound is the named constant `CHANNEL_MIN_DEPTH` rather than a
   literal repeated in the gate and the evidence band.
+- The pullback and reversal layers report **both** directions rather than one
+  winner. Ranking them is a decision, and the decision layer does not exist yet.
 
 ### Fixed
 - A "distance to target" evidence factor was removed during review. In all five
@@ -42,6 +57,17 @@ been statistically validated, and no performance claim is made.
   the factor was `mm_range` restated against a different constant — two names for
   one number, whose apparent independence from the scale factor was an artefact of
   the arithmetic. A test pins the relationship.
+- **`bar_features` leaked future bars.** `analyze_series` has no `last_closed` of
+  its own and always runs to the end of the series it is given, so analysing bar
+  39 of 60 returned per-bar features for bars 40-59 — future prices inside a
+  result the architecture promises is closed-bar only. The pipeline now slices to
+  the analysed window. Two regression tests cover it, including one that checks
+  the prices themselves rather than the indices.
+- **`Bar.from_dict` rejected the short `o/h/l/c` keys** that every detector's own
+  `_get_ohlc` and the README both accept, so `Analyzer.analyze()` — the
+  documented entry point — refused input the rest of the engine read happily. A
+  bar missing a price field now raises a `KeyError` naming the field and listing
+  the keys supplied, instead of a bare one.
 
 ## [0.1.0] — 2026-09-27
 

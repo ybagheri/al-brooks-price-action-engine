@@ -79,13 +79,35 @@ class Bar:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Bar:
+        """Build a bar from a mapping.
+
+        Both the long (`open`/`high`/`low`/`close`) and short (`o`/`h`/`l`/`c`)
+        spellings are accepted. The short form is what every detector's own
+        `_get_ohlc` already handles, and what the README documents as valid input,
+        so rejecting it here would have made `Analyzer.analyze()` the one entry
+        point that refuses a bar the rest of the engine reads happily.
+
+        The long spelling wins when both are present, so a mapping carrying
+        aliases alongside canonical keys is not silently overridden by an alias.
+        """
+
+        def pick(short: str, long: str) -> float:
+            if long in data:
+                return float(data[long])
+            if short in data:
+                return float(data[short])
+            raise KeyError(
+                f"bar is missing price field {long!r} (or {short!r}); "
+                f"got keys {sorted(data)}"
+            )
+
         return cls(
             time=float(data.get("time", 0.0)),
-            open=float(data["open"]),
-            high=float(data["high"]),
-            low=float(data["low"]),
-            close=float(data["close"]),
-            volume=float(data.get("volume", 0.0)),
+            open=pick("o", "open"),
+            high=pick("h", "high"),
+            low=pick("l", "low"),
+            close=pick("c", "close"),
+            volume=float(data.get("volume", data.get("v", 0.0))),
             index=int(data.get("index", 0)),
         )
 

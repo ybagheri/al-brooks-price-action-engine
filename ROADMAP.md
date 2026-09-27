@@ -17,7 +17,7 @@ This roadmap documents the implementation progress across all 23 development pha
 
 - [x] **Phase 1 — Architecture Foundation**
   - **Objective**: Package metadata, configuration, normalized bar representations, serialization, core models, CI workflow.
-  - **Status**: Completed.
+  - **Status**: Completed. The `Analyzer.analyze()` pipeline is wired; `docs/architecture/ARCHITECTURE.md` §7 documents the order and the reasons for it.
 
 - [x] **Phase 2 — Bar-by-Bar Engine**
   - **Objective**: Objective per-bar features (body, wicks, close location, doji, inside/outside, barbwire, overlap, pressure).

@@ -22,14 +22,15 @@ Work is in progress. See [ROADMAP.md](ROADMAP.md) for per-phase status and
 | Area | State |
 |---|---|
 | Bar-by-bar features | Implemented, unit tested |
-| Swings, legs | Partial — pivots pending |
-| Market context | Partial — being brought to spec |
-| Structures | Partial — being brought to spec |
-| H1/H2, L1/L2 | Partial — lifecycle states pending |
-| Doubles, breakouts, reversals | Partial |
-| Measured moves | Implemented, being aligned to spec model |
-| `Analyzer.analyze()` pipeline | Not yet wired |
-| Evidence, trade plans, decisions | Not started |
+| Swings, legs, pivots | Implemented |
+| Market context | Implemented |
+| Structures | Implemented |
+| H1/H2, L1/L2 | Implemented, with lifecycle states |
+| Doubles, breakouts, reversals | Implemented |
+| Measured moves | Implemented, with evidence and confidence |
+| `Analyzer.analyze()` pipeline | Wired — all layers above, closed-bar only |
+| Fading measured moves, evidence model | Not started |
+| Trade plans, decisions | Not started |
 | MQL5 parity, MT5 adapter | Not started |
 
 **Implementation status is not trading validation.** See
@@ -93,10 +94,28 @@ bars = [
 
 result = analyzer.analyze(bars, symbol="EURUSD", timeframe="H1")
 
-print(result.market_state)
+print(result.market_state["mode"], result.market_state["direction"])
 for setup in result.setups:
-    print(setup)
+    print(setup["family"], setup.get("setup_type") or setup.get("state"))
+
+# analyse as of an earlier bar; later bars cannot change the result
+snapshot = analyzer.analyze(bars, last_closed=99)
 ```
+
+Pass `last_closed` to analyse **as of** a bar index. Everything derived is read from
+bars `0..last_closed` only, so the output for a given index is identical whether or
+not later bars exist. A value past the end of the data is clamped, not rejected.
+
+Degenerate input is reported rather than hidden. A series with no bars, or one with
+no volatility at all, returns a result whose `market_state.reason` and
+`decision.reason` say so, with every layer marked as not run — an empty layer would
+otherwise read as a claim about the market that was never actually examined.
+
+`result.layers` records which layers ran, and `result.unimplemented_layers` lists
+the ones this build makes no claim about (currently trade plans and the decision).
+
+`decision` is always `NO_TRADE`: the decision engine is a later phase, and this
+library reports structure and setup candidates rather than inferring a trade.
 
 Bar indexing is **oldest-first** throughout: index `0` is the oldest bar,
 `len(bars) - 1` the newest. This is deliberately the opposite of MetaTrader 5
