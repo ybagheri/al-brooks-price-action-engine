@@ -39,7 +39,7 @@ README_FA = REPO / "README_FA.md"
 
 #: The last phase known to be complete. Bumping this is a deliberate act that says
 #: "the phase below shipped"; the tests then hold every document to it.
-LAST_COMPLETE_PHASE = 19
+LAST_COMPLETE_PHASE = 20
 LAST_PHASE = 23
 
 MARKDOWN = sorted(
@@ -73,13 +73,16 @@ REPO_PATH = re.compile(
 
 #: Phases whose deliverables are named by a path, and therefore may be named in
 #: prose even while the phase is pending. Everything else must not be.
+#:
+#: `tests/parity/` is here because the harness shipped with Phase 20 and the only
+#: thing still missing inside it is the MQL5 sidecar Phase 21 writes. Naming a
+#: harness that exists is not naming unfinished work.
 PENDING_PHASE_PATHS = (
-    "docs/PYTHON_MQL5_PARITY.md",
     "src/albrooks/serialization/json.py",
     "examples/llm_analysis.py",
+    "docs/algorithms/AI_INTERFACE.md",
     "mql5/",
     "src/albrooks/adapters/mt5/",
-    "tests/parity/",
 )
 
 #: The grammatical constructions by which a *completed* phase gets described as

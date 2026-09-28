@@ -1,0 +1,87 @@
+{
+  "case_id": "parity_trend_001",
+  "producer": "python",
+  "producer_version": "albrooks 0.1.0",
+  "schema": "albrooks-parity/1",
+  "scope": [
+    "last_closed_bar",
+    "bars_processed",
+    "atr",
+    "market_state",
+    "swings",
+    "setups",
+    "trade_plans",
+    "decision"
+  ],
+  "vector": {
+    "atr": 1.141811167811798,
+    "bars_processed": 34,
+    "decision": {
+      "action": "BUY",
+      "direction": 1,
+      "is_actionable": true,
+      "reason": "RANKED_CANDIDATE"
+    },
+    "last_closed_bar": 33,
+    "market_state": {
+      "direction": 1,
+      "mode": "BULL_TREND",
+      "strength": 0.35,
+      "valid": true
+    },
+    "setups": [
+      {
+        "detector": "BREAKOUT",
+        "direction": 1,
+        "kind": "DEFAULT",
+        "setup_family": "BREAKOUT",
+        "setup_type": null
+      }
+    ],
+    "swings": [
+      {
+        "bar_index": 11,
+        "confirmed_bar_index": 14,
+        "direction": -1,
+        "price": 103.5
+      },
+      {
+        "bar_index": 18,
+        "confirmed_bar_index": 21,
+        "direction": -1,
+        "price": 106.3
+      },
+      {
+        "bar_index": 25,
+        "confirmed_bar_index": 28,
+        "direction": -1,
+        "price": 109.1
+      },
+      {
+        "bar_index": 30,
+        "confirmed_bar_index": 33,
+        "direction": -1,
+        "price": 110.7
+      },
+      {
+        "bar_index": 5,
+        "confirmed_bar_index": 8,
+        "direction": -1,
+        "price": 101.1
+      }
+    ],
+    "trade_plans": [
+      {
+        "direction": 1,
+        "entry": 114.1,
+        "has_structural_stop": true,
+        "is_valid": true,
+        "reward_to_risk": 3.3315530441086487,
+        "stop": 113.41454720804705,
+        "stop_basis": "BREAKOUT_REFERENCE",
+        "target": 116.38362233562358,
+        "target_basis": "ATR_FALLBACK"
+      }
+    ]
+  }
+}

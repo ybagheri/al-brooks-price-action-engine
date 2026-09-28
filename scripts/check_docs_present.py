@@ -62,6 +62,7 @@ REQUIRED_DOCS: tuple[tuple[str, int], ...] = (
     ("docs/algorithms/NON_REPAINT_CONTRACT.md", 17),
     ("docs/algorithms/BACKTESTING.md", 18),
     ("docs/algorithms/VALIDATION.md", 19),
+    ("docs/PYTHON_MQL5_PARITY.md", 20),
 )
 
 # Only documents owed by a phase that has NOT been completed yet.
@@ -72,11 +73,12 @@ REQUIRED_DOCS: tuple[tuple[str, int], ...] = (
 # already on disk, which is a CI failure that means nothing and so trains people
 # to ignore the one that does.
 #
-# Every phase through 19 is complete, so everything still listed here is genuinely
-# absent. Phase 23 is documentation-only and owes no new path: it expands the
-# documents already required above.
+# Every phase through 20 is complete, so everything still listed here is genuinely
+# absent. Phase 21 owes no new document — it fills the harness Phase 20 defines,
+# and `docs/PYTHON_MQL5_PARITY.md` §8 is what tells it to. Phase 23 is
+# documentation-only and owes no new path: it expands the documents already
+# required above.
 PENDING_DOCS: tuple[tuple[str, int], ...] = (
-    ("docs/PYTHON_MQL5_PARITY.md", 20),
     ("docs/algorithms/AI_INTERFACE.md", 22),
 )
 

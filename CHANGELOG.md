@@ -11,6 +11,26 @@ been statistically validated, and no performance claim is made.
 ## [Unreleased]
 
 ### Added
+- **Phase 20** — `tests/parity/`: the Python/MQL5 parity harness, and
+  `docs/PYTHON_MQL5_PARITY.md`. A **canonical vector** of 33 declared fields
+  across eight groups — analysed bar, ATR, market state, swings with both their
+  bar index and their confirmation index, detected setups, plan geometry with
+  the basis of every level, and the decision with its reason code — that an MQL5
+  port must reproduce to be considered the same engine.
+- `tests/parity/cases/`: three hand-drawn cases, each stating the divergence it
+  exists to catch. A rising trend with three pushes, a range whose highs recur
+  inside every 5-bar window then an upside break, and a bear trend whose rally
+  returns toward the origin.
+- **A per-field comparison policy rather than one epsilon.** `EXACT_INT`,
+  `EXACT_CODE` and `EXACT_BOOL` are compared with `==`; only `NUMBER` carries
+  `RELATIVE_TOLERANCE = 1e-9`, with `ABSOLUTE_FLOOR` for references near zero. An
+  index differing by one is a repaint bug and a price differing in the fifteenth
+  digit is a summation order, and treating them alike would have hidden both. The
+  worst observed deviation is reported for every case, pass or fail.
+- `docs/PYTHON_MQL5_PARITY.md` — the specification, including the two things the
+  scope excludes (prose, and the constant `is_probability` / `is_recommendation`
+  markers), the one field that is not closed-bar stable and why it is in scope
+  anyway, and what Phase 21 owes.
 - **Phase 11** — `src/albrooks/setups/fading_measured_move.py`: the Fading
   Measured Move lifecycle, `PROJECTED -> POTENTIAL -> DEVELOPING -> CONFIRMED
   -> COMPLETED` with `-> INVALIDATED` from any state. Consumes
@@ -52,6 +72,41 @@ been statistically validated, and no performance claim is made.
 - `AnalysisResult.unimplemented_layers` lists the layers a result makes no claim
   about, read from `layers` rather than inferred from an empty list — "nothing
   found" and "not implemented" are different statements.
+
+### Known limitations
+- **No MQL5 parity has been established, and the harness cannot be read as having
+  tried.** `tests/parity/mql5/` is empty, all three cases name no sidecar, and a
+  run reports `UNVERIFIED` — a status distinct from both a pass and a failure,
+  because nothing was compared. Zero of three cases have been compared and **no
+  parity claim is made anywhere in this project.**
+- Three refusals keep that state from being mistaken for a result. A sidecar
+  whose `producer` is not `mql5` is not counted, which is what makes the
+  committed Python-produced vectors in `tests/parity/reference/` safe to keep; a
+  sidecar covering a strict subset of the scope is refused; and one written
+  against a different schema is refused, because two sides implementing different
+  contracts can agree on everything they both check.
+- **`AGREED` requires every case to have been compared.** Half a case set is not
+  half a pass — a boolean cannot express "these two agreed and that one was never
+  run" — so a partially filled run is `FAILED`. `UNVERIFIED` has its own exit
+  code (2), and CI's `--allow-unverified` is asserted by a test to exist exactly
+  while the shipped state is `UNVERIFIED`, so Phase 21 cannot remove one without
+  the other.
+- **List order is not compared.** An MQL5 registry is not this registry and
+  `SETUP_ENGINE.md` §5 is explicit that registration order is not a ranking, so a
+  port whose findings arrive in a different order would pass. List *count* is
+  compared, which is the difference that changes behaviour.
+- **`bars_processed` is the one field in scope that is not closed-bar stable.** It
+  counts the bars the run was *given*, so appending future bars moves it. It is
+  left in because the obligation it imposes is an input condition rather than a
+  behavioural claim — the port must be fed the same number of bars — and a port
+  that silently truncated its series is exactly what it exists to catch.
+- **A tolerance is not a proof of identical arithmetic.** `1e-9` is a statement
+  about where two implementations may legitimately differ in summation order, and
+  it is a weak one. The rest of the scope is compared exactly.
+- The two implementations' first comparison is expected to **fail**. A port's ATR
+  seed, its series direction, its swing tie-break and its null convention are four
+  easy places to diverge, which is why each is in the scope, and the disagreements
+  should be recorded rather than tuned away.
 
 ### Changed
 - `docs/algorithms/MEASURED_MOVE.md` renamed to `MEASURED_MOVES.md` to match the

@@ -21,8 +21,8 @@ different claims:
 
 ## Where the project stands
 
-**20 of 24 phases are complete.** Phases 0 through 19 are done and verified by the
-test suite. Phases 20 through 23 remain.
+**21 of 24 phases are complete.** Phases 0 through 20 are done and verified by the
+test suite. Phases 21 through 23 remain.
 
 ### The engine is finished; the platform it runs on is not
 
@@ -48,12 +48,11 @@ bars -> features -> swings/legs -> context -> structures -> setups (11 detectors
 
 ### What is not built
 
-Four phases remain, and they are all platform work rather than analysis work:
+Three phases remain, and they are all platform work rather than analysis work:
 
 | Phase | What it adds | Why it is last |
 |---|---|---|
-| **20 — Python / MQL5 Parity** | A harness proving the MQL5 build agrees with the Python one | Needs an MQL5 build to compare against |
-| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/`, `mql5/Include/AlBrooks/` | Depends on Phase 20 |
+| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/`, `mql5/Include/AlBrooks/` — and the first sidecars that fill the Phase 20 harness | Needs a second implementation to compare against, which is what Phase 20 defined the contract for |
 | **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | Needs a stable serialized contract to hand an agent |
 | **23 — Bilingual Documentation** | Expanded English and Persian documentation | Documentation-only; owes no new code path |
 
@@ -67,6 +66,13 @@ would be required to change that — chiefly a stated null — is set out in
 `docs/algorithms/VALIDATION.md` §9. A reader looking for evidence that these
 setups have an edge will not find it here, and that absence is deliberate and
 documented rather than an oversight.
+
+**The same is true of parity, and it is worth saying in the same breath.** Phase
+20 built the harness that will prove an MQL5 port agrees with this one, and
+**zero cases have been compared** because no MQL5 build exists. The harness is
+built to be unable to report agreement it has not earned — see *Deliberately Not
+Built* below — and `docs/PYTHON_MQL5_PARITY.md` §7 says so in the document a
+reader of that phase will open first.
 
 ---
 
@@ -340,13 +346,63 @@ documented rather than an oversight.
   - `docs/algorithms/VALIDATION.md`, promoted to a required document in CI, and
     `tests/unit/test_phase19_golden.py` — 47 tests.
 
-- [ ] **Phase 20 — Python / MQL5 Parity**
+- [x] **Phase 20 — Python / MQL5 Parity**
   - **Objective**: Closed-bar parity validation harness between Python and MQL5 components.
   - **Deliverable**: `tests/parity/`, `docs/PYTHON_MQL5_PARITY.md`.
+  - **What it is**: the *contract* two implementations would be compared against.
+    A **canonical vector** — 33 declared fields across eight groups: the analysed
+    bar, ATR, the market state, the swings with both their bar index and their
+    **confirmation** index, the detected setups, the trade-plan geometry with the
+    basis of every level, and the decision with its reason code. Every field
+    carries a declared comparison class, and the classes are not uniform on
+    purpose: an index that differs by one is a repaint bug, a price that differs
+    in the fifteenth digit is a summation order, and only the second gets a
+    tolerance (`RELATIVE_TOLERANCE = 1e-9`). The worst observed deviation is
+    reported for every case, pass or fail, so two runs that both passed with very
+    different margins do not read the same.
+  - **What it deliberately does not do**: compare anything. **No MQL5 build
+    exists, `tests/parity/mql5/` is empty, and zero of the three cases have been
+    compared.** A run today reports `UNVERIFIED`, which is neither a pass nor a
+    failure, and a test asserts that shipped state rather than letting the
+    document and the code drift apart.
+  - **The cycle this phase broke, and how**: the roadmap as first written had
+    Phase 20 needing an MQL5 build to compare against and Phase 21 depending on
+    Phase 20, so neither could start. The resolution was to split *contract* from
+    *fill*: Phase 20 owns the canonical form, the comparison policy, the cases
+    and the report, and Phase 21 owns the MQL5 build and the first sidecars. The
+    alternative — port first, comparison second — means writing the specification
+    from the port's own behaviour, which is how a parity harness ends up asserting
+    only what both sides already agree on.
+  - **Three refusals, which are the design rather than the packaging**:
+    a sidecar whose `producer` is not `mql5` is not parity evidence (which is what
+    makes the committed Python-produced vectors in `tests/parity/reference/` safe
+    to keep); a sidecar covering a strict subset of the scope is refused, so
+    "we agree on the three fields we implemented" cannot pass; and a sidecar
+    written against a different schema is refused, because two sides implementing
+    different contracts can agree on everything they both check.
+  - **`AGREED` requires every case to have been compared.** Half a case set is not
+    half a pass, and a boolean cannot say "these two agreed and that one was never
+    run", so a partially filled run is `FAILED`. `UNVERIFIED` has its own exit code
+    and CI's `--allow-unverified` is asserted by a test to exist exactly while the
+    shipped state is `UNVERIFIED`, so neither can be removed without the other.
+  - **Two things it will not assert**: the parity vector is closed-bar stable,
+    which is `RPC-1` restated for the thing the port has to reproduce — except for
+    `bars_processed`, the one field that describes the *input* rather than the
+    analysis, and the document says so rather than leaving the exception to be
+    discovered. And list **order** is not compared, because an MQL5 registry is not
+    this registry; list **count** is, which is the difference that changes
+    behaviour.
+  - `docs/PYTHON_MQL5_PARITY.md`, `tests/parity/README.md`,
+    `tests/unit/test_phase20_parity.py` — 56 tests, and a CI step.
 
 - [ ] **Phase 21 — MT5 Adapter & MQL5 Layer**
   - **Objective**: MQL5 include headers, MT5 python connector, indicator & EA templates.
   - **Deliverable**: `src/albrooks/adapters/mt5/`, `mql5/Include/AlBrooks/`.
+  - **Also closes two things Phase 20 left open**: the fade lifecycle's
+    unreachable state, which `track_fading_measured_moves` fixes once a
+    stateful caller exists, and the parity harness's `mql5/` directory, which
+    becomes the first thing to put something in it. `docs/PYTHON_MQL5_PARITY.md`
+    §8 lists what it owes.
 
 - [ ] **Phase 22 — AI / LLM Interface**
   - **Objective**: Stable JSON serialization for LLM agents, diagnostic output, example script.
@@ -529,6 +585,29 @@ it as the layer's largest false-positive risk.
 *Changes when:* a higher-timeframe *structure* analysis exists - HTF swings, legs
 and setups rather than a single bar's classification - at which point "the higher
 timeframe disagrees" could be resolved into something more specific than yes or no.
+
+### Parity is defined, and unproven
+
+Phase 20 built the harness that will prove an MQL5 port agrees with this engine.
+**It has not proved it, and it cannot be read as having tried.** `tests/parity/`
+ships three cases, an empty `mql5/` directory, and a runner whose verdict today is
+`UNVERIFIED` — a distinct status from both a pass and a failure, because nothing
+was compared.
+
+The harness is built so this state cannot be mistaken for a result:
+
+- `claims_parity` is true only for `AGREED`, which needs **every** case compared
+  and matching.
+- A sidecar that did not come from an MQL5 build is not counted at all, so the
+  committed Python-produced vectors cannot be compared against themselves and
+  called agreement.
+- `UNVERIFIED` is its own exit code, so a CI job does not have to choose between
+  failing over a build nobody has written and passing silently.
+
+*Changes when:* Phase 21 writes the first real sidecars. The expectation should be
+that the first run **fails** — a port's ATR seed, series direction, swing tie-break
+and null convention are four easy places to diverge, which is why each is in
+scope — and that the disagreements get recorded rather than tuned away.
 
 ### A new *layer* is not covered by the non-repaint contract for free
 
