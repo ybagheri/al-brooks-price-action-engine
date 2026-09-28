@@ -1,0 +1,340 @@
+{
+  "id": "golden_fm_001",
+  "concept": "A measured-move projection the market has already reached and rejected",
+  "spec": "docs/algorithms/FADING_MEASURED_MOVE.md",
+  "question": "A 10.3 leg projects 111.1. Price rallies to 111.4 and reverses on a large down bar. What state does the PIPELINE report, and what does the lifecycle actually believe?",
+  "config": {},
+  "last_closed": 29,
+  "chart": [
+    "0..11   a steady decline from 110.0",
+    "12      the swing low A0 at 95.8, confirmed at bar 15",
+    "18      the swing high A1 at 106.1, confirmed at bar 21",
+    "22      the pullback low B0 at 100.8, confirmed at bar 25",
+    "23..27  a rally toward the projection",
+    "28      price at 111.4, essentially AT the 111.1 target",
+    "29      a large down bar rejecting it: body 2.6 of a 3.1 range, closing near the low"
+  ],
+  "derivation": [
+    "mm_range = A1 - A0 = 106.1 - 95.8 = 10.3.",
+    "target = B0 + mm_range = 100.8 + 10.3 = 111.1. The projectable distance is measured",
+    "  from the pullback low, not from A1.",
+    "depth = (A1 - B0) / mm_range = 5.3 / 10.3 = 0.5146, inside the REGULAR band of",
+    "  [0.15, 0.90], so the family is REGULAR and not CHANNEL.",
+    "Bar 29 is a valid fade signal bar: body 2.6 / range 3.1 = 0.84 >= fm_min_body 0.30;",
+    "  close sits at (111.7 - 108.8) / 3.1 = 0.935 of the range from the top, well inside",
+    "  the required 0.50; the adverse wick is (108.8 - 108.6) / 3.1 = 0.065, well inside",
+    "  the 0.60 limit.",
+    "So the LIFECYCLE at bar 29 is DEVELOPING, touched, with 3 exhaustion conditions. Bar 28",
+    "  put the price at the target and bar 29 rejected it.",
+    "THE FINDING: through Analyzer.analyze() the same bar reports state PROJECTED, age 0,",
+    "  exhaustion_breadth 0, reason 'projection formed'. The registry calls create_setups,",
+    "  which only seeds; the advancing function is track_fading_measured_moves, which the",
+    "  pipeline never calls. A live consumer therefore cannot see a fade develop, and the",
+    "  whole five-state lifecycle is unreachable outside the module. This fixture records",
+    "  both readings rather than the flattering one.",
+    "The setup's `direction` field in a pipeline finding is the FADE direction, not the",
+    "  projection's: -1 here, because a bull projection is faded short. The projection's own",
+    "  direction is +1 and is readable on the nested projection."
+  ],
+  "bars": [
+    {
+      "i": 0,
+      "o": 110.0,
+      "h": 110.9,
+      "l": 108.9,
+      "c": 109.0
+    },
+    {
+      "i": 1,
+      "o": 109.0,
+      "h": 109.9,
+      "l": 107.9,
+      "c": 108.0
+    },
+    {
+      "i": 2,
+      "o": 108.0,
+      "h": 108.9,
+      "l": 106.9,
+      "c": 107.0
+    },
+    {
+      "i": 3,
+      "o": 107.0,
+      "h": 107.9,
+      "l": 105.9,
+      "c": 106.0
+    },
+    {
+      "i": 4,
+      "o": 106.0,
+      "h": 106.9,
+      "l": 104.9,
+      "c": 105.0
+    },
+    {
+      "i": 5,
+      "o": 105.0,
+      "h": 105.9,
+      "l": 103.9,
+      "c": 104.0
+    },
+    {
+      "i": 6,
+      "o": 104.0,
+      "h": 104.9,
+      "l": 102.9,
+      "c": 103.0
+    },
+    {
+      "i": 7,
+      "o": 103.0,
+      "h": 103.9,
+      "l": 101.9,
+      "c": 102.0
+    },
+    {
+      "i": 8,
+      "o": 102.0,
+      "h": 102.9,
+      "l": 100.9,
+      "c": 101.0
+    },
+    {
+      "i": 9,
+      "o": 101.0,
+      "h": 101.9,
+      "l": 99.9,
+      "c": 100.0
+    },
+    {
+      "i": 10,
+      "o": 100.0,
+      "h": 100.9,
+      "l": 98.9,
+      "c": 99.0
+    },
+    {
+      "i": 11,
+      "o": 99.0,
+      "h": 99.9,
+      "l": 97.9,
+      "c": 98.0
+    },
+    {
+      "i": 12,
+      "o": 98.0,
+      "h": 98.2,
+      "l": 95.8,
+      "c": 96.2
+    },
+    {
+      "i": 13,
+      "o": 96.2,
+      "h": 97.0,
+      "l": 95.9,
+      "c": 96.9
+    },
+    {
+      "i": 14,
+      "o": 96.9,
+      "h": 99.0,
+      "l": 96.5,
+      "c": 98.6
+    },
+    {
+      "i": 15,
+      "o": 98.6,
+      "h": 101.0,
+      "l": 98.4,
+      "c": 100.8
+    },
+    {
+      "i": 16,
+      "o": 100.8,
+      "h": 103.2,
+      "l": 100.5,
+      "c": 103.0
+    },
+    {
+      "i": 17,
+      "o": 103.0,
+      "h": 105.4,
+      "l": 102.8,
+      "c": 105.2
+    },
+    {
+      "i": 18,
+      "o": 105.2,
+      "h": 106.1,
+      "l": 104.9,
+      "c": 105.4
+    },
+    {
+      "i": 19,
+      "o": 105.4,
+      "h": 105.6,
+      "l": 103.9,
+      "c": 104.2
+    },
+    {
+      "i": 20,
+      "o": 104.2,
+      "h": 104.4,
+      "l": 102.6,
+      "c": 102.9
+    },
+    {
+      "i": 21,
+      "o": 102.9,
+      "h": 103.1,
+      "l": 101.3,
+      "c": 101.6
+    },
+    {
+      "i": 22,
+      "o": 101.6,
+      "h": 101.8,
+      "l": 100.8,
+      "c": 101.0
+    },
+    {
+      "i": 23,
+      "o": 101.0,
+      "h": 102.4,
+      "l": 100.9,
+      "c": 102.2
+    },
+    {
+      "i": 24,
+      "o": 102.2,
+      "h": 105.0,
+      "l": 102.0,
+      "c": 104.8
+    },
+    {
+      "i": 25,
+      "o": 104.8,
+      "h": 107.5,
+      "l": 104.6,
+      "c": 107.3
+    },
+    {
+      "i": 26,
+      "o": 107.3,
+      "h": 109.8,
+      "l": 107.1,
+      "c": 109.6
+    },
+    {
+      "i": 27,
+      "o": 109.6,
+      "h": 111.2,
+      "l": 109.4,
+      "c": 110.2
+    },
+    {
+      "i": 28,
+      "o": 110.2,
+      "h": 111.6,
+      "l": 110.0,
+      "c": 111.4
+    },
+    {
+      "i": 29,
+      "o": 111.4,
+      "h": 111.7,
+      "l": 108.6,
+      "c": 108.8
+    }
+  ],
+  "expected": {
+    "atr": 2.1134346664580606,
+    "measured_move": {
+      "family": "REGULAR",
+      "direction": 1,
+      "mm_range": 10.299999999999997,
+      "target_price": 111.1,
+      "pullback_depth": 0.5145631067961164,
+      "a0": {
+        "bar": 12,
+        "price": 95.8
+      },
+      "a1": {
+        "bar": 18,
+        "price": 106.1
+      },
+      "b0": {
+        "bar": 22,
+        "price": 100.8
+      },
+      "basis": {
+        "a0": "the swing low at bar 12, price 95.8, confirmed 3 bars later at bar 15",
+        "a1": "the swing high at bar 18, price 106.1, confirmed 3 bars later at bar 21",
+        "b0": "the pullback low at bar 22, price 100.8, confirmed 3 bars later at bar 25",
+        "direction": "+1, because the leg runs from a low at bar 12 to a high at bar 18, so the projection points up",
+        "family": "REGULAR because the pullback depth 0.5146 is inside [0.15, 0.90]; CHANNEL would need a depth below 0.15",
+        "mm_range": "A1 - A0 = 106.1 - 95.8 = 10.3, the leg that is being projected",
+        "pullback_depth": "(A1 - B0) / mm_range = 5.3 / 10.3 = 0.5146",
+        "target_price": "B0 + mm_range = 100.8 + 10.3 = 111.1"
+      }
+    },
+    "setup": {
+      "detector": "FADING_MEASURED_MOVE",
+      "state": "PROJECTED",
+      "direction": -1,
+      "fade_direction": -1,
+      "target_price": 111.1,
+      "age": 0,
+      "exhaustion_breadth": 0,
+      "reason": "projection formed",
+      "basis": {
+        "age": "0, which is the tell: a projection the market has already reached cannot be zero bars old",
+        "detector": "the fading-measured-move detector, which consumes a MeasuredMove projection and never the reverse",
+        "direction": "in a pipeline finding this field is the FADE direction. The projection's own direction is +1 and sits on the nested projection, which is the confusion this fixture exists to record",
+        "exhaustion_breadth": "0 through the pipeline, against 3 from the lifecycle at the same bar",
+        "fade_direction": "-1, fading a bull projection short",
+        "reason": "the literal string the seeding path emits",
+        "state": "what the PIPELINE reports. The registry calls create_setups, which seeds only, so nothing has had a chance to advance",
+        "target_price": "111.1, the measured-move target that the projection named at 100.8 + 10.3"
+      }
+    },
+    "lifecycle_outside_the_pipeline": {
+      "state": "DEVELOPING",
+      "touched": true,
+      "exhaustion_breadth": 3,
+      "age": 30,
+      "target_price": 111.1,
+      "basis": {
+        "state": "what track_fading_measured_moves reports for the same bar, reached by advancing the seeded setup through bars 0..29",
+        "touched": "bar 28 traded at 111.4, within the 0.25*atr tolerance of the 111.1 target",
+        "exhaustion_breadth": "three of the five documented exhaustion conditions hold on bar 28",
+        "age": "bars since the projection formed, which through the pipeline is reported as 0",
+        "target_price": "the same 111.1: the lifecycle changes the state, not the projection"
+      }
+    },
+    "decision": {
+      "action": "REVERSAL_BULL#1, not the fade",
+      "is_probability": false,
+      "basis": {
+        "action": "a bull reversal outranks the fade. The fade scores 0.4 on its own lifecycle factor at PROJECTED, and its plan is stale, so the winner is a 1.0 verdict factor instead",
+        "is_probability": "false, and it is worth insisting: this is the most interesting chart in the dataset and it still does not produce a number anyone could read as a likelihood"
+      }
+    }
+  },
+  "must_not": {
+    "the_pipeline_reports_a_developed_state": "the registry only seeds, so a pipeline reading of DEVELOPING or later would mean something had started advancing a stateful setup inside a stateless detector call",
+    "the_fade_becomes_the_ranked_answer": "the fade's plan is stale by the time a projection reaches its target, so it is vetoed TRADE_IS_LATE. Ranking it would be ranking a trade that could not have been entered at the level the plan names",
+    "the_projection_is_called_inverse": "INVERSE projections are the weakest input in the family and the spec says so; calling this one INVERSE would misdescribe a textbook AB=CD leg"
+  },
+  "falsifiers": [
+    {
+      "what": "truncate the series to its first 27 bars, so price never reaches the target",
+      "predicts": "the lifecycle reaches POTENTIAL but never touches, and the pipeline's PROJECTED becomes correct rather than limited. That is the honest boundary of the finding below: it is about having reached a target, not about the architecture failing for every fade"
+    },
+    {
+      "what": "change bar 22's low from 100.8 to 105.5, pulling B0 up",
+      "predicts": "the target moves to 105.5 + 10.3 = 115.8 and the depth becomes (106.1 - 105.5) / 10.3 = 0.058, which is below the 0.15 floor, so the family changes from REGULAR to CHANNEL. A shallow pullback is not a weaker measured move, it is a different one"
+    }
+  ]
+}

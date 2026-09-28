@@ -1,0 +1,508 @@
+{
+  "id": "golden_h2_001",
+  "concept": "H2 (second counter-trend leg) entry in a bull trend",
+  "spec": "docs/algorithms/H1_H2_L1_L2.md",
+  "question": "In a strong bull trend, price stalls under a flat resistance, makes two counter-trend legs and resumes. Does the engine name that an H2, place the signal on the resumption bar, and produce a plan that clears its own gates?",
+  "config": {
+    "max_pb_bars": 12,
+    "min_pb_ratio": 0.15
+  },
+  "last_closed": 52,
+  "chart": [
+    "0..39   steady bull trend, closes 100.0 -> 111.7, each bar ~2.0 range",
+    "40..48  stall under a FLAT high of 114.0 (this is what makes the pullback",
+    "        legible: a flat top is what a higher high can be measured against)",
+    "49      dip to 112.6",
+    "50      leg 1: high 114.3, the first higher high in the window",
+    "51      deeper low 112.4, below the 112.5 level reached up to leg 1",
+    "52      leg 2 / resumption: high 114.5, above leg 1's 114.3"
+  ],
+  "derivation": [
+    "Context gate: calculate_trend_gap / atr must exceed 0.4. The trend is 12",
+    "  points over 40 bars, so the EMA20/EMA50 gap is far wider than 0.4 ATR.",
+    "Window: w0 = last_closed - max_pb_bars = 52 - 12 = 40, so the window is bars",
+    "  40..52. Bars 40..48 all share high 114.0, so no bar before 50 can have made",
+    "  a higher high.",
+    "leg1 = 50, because bar 50's high 114.3 is the first bar above its predecessor's",
+    "  high within the window.",
+    "level_at_1 = min(low) over bars 40..50 = 112.5 (bar 50). Bar 49's low is 112.6.",
+    "leg2_low = 51, because bar 51's low 112.4 is the first bar below 112.5.",
+    "resumption = 52, because bar 52's high 114.5 is the first bar above bar 51's",
+    "  high 114.2.",
+    "stop_price = min(low) over the whole window = 112.4, which is also bar 51's low",
+    "  and therefore also extreme_price.",
+    "reference_price = the resumption bar's high = 114.5.",
+    "Plan: entry = reference_price; stop = stop_price - 0.25*atr (PULLBACK_EXTREME);",
+    "  target = entry + 2.0*atr (ATR_FALLBACK).",
+    "Tradeable: rr = (2.0*atr) / (entry - stop_price + 0.25*atr) = 3.5085 / 2.5386",
+    "  = 1.382, above the declared min_rr of 1.0. Price at bar 52 closed 114.3,",
+    "  which is 0.2 from the entry of 114.5, so the plan is not late."
+  ],
+  "bars": [
+    {
+      "i": 0,
+      "o": 100.0,
+      "h": 101.1,
+      "l": 98.8,
+      "c": 100.3
+    },
+    {
+      "i": 1,
+      "o": 100.3,
+      "h": 101.4,
+      "l": 99.1,
+      "c": 100.6
+    },
+    {
+      "i": 2,
+      "o": 100.6,
+      "h": 101.7,
+      "l": 99.4,
+      "c": 100.9
+    },
+    {
+      "i": 3,
+      "o": 100.9,
+      "h": 102.0,
+      "l": 99.7,
+      "c": 101.2
+    },
+    {
+      "i": 4,
+      "o": 101.2,
+      "h": 102.3,
+      "l": 100.0,
+      "c": 101.5
+    },
+    {
+      "i": 5,
+      "o": 101.5,
+      "h": 102.6,
+      "l": 100.3,
+      "c": 101.8
+    },
+    {
+      "i": 6,
+      "o": 101.8,
+      "h": 102.9,
+      "l": 100.6,
+      "c": 102.1
+    },
+    {
+      "i": 7,
+      "o": 102.1,
+      "h": 103.2,
+      "l": 100.9,
+      "c": 102.4
+    },
+    {
+      "i": 8,
+      "o": 102.4,
+      "h": 103.5,
+      "l": 101.2,
+      "c": 102.7
+    },
+    {
+      "i": 9,
+      "o": 102.7,
+      "h": 103.8,
+      "l": 101.5,
+      "c": 103.0
+    },
+    {
+      "i": 10,
+      "o": 103.0,
+      "h": 104.1,
+      "l": 101.8,
+      "c": 103.3
+    },
+    {
+      "i": 11,
+      "o": 103.3,
+      "h": 104.4,
+      "l": 102.1,
+      "c": 103.6
+    },
+    {
+      "i": 12,
+      "o": 103.6,
+      "h": 104.7,
+      "l": 102.4,
+      "c": 103.9
+    },
+    {
+      "i": 13,
+      "o": 103.9,
+      "h": 105.0,
+      "l": 102.7,
+      "c": 104.2
+    },
+    {
+      "i": 14,
+      "o": 104.2,
+      "h": 105.3,
+      "l": 103.0,
+      "c": 104.5
+    },
+    {
+      "i": 15,
+      "o": 104.5,
+      "h": 105.6,
+      "l": 103.3,
+      "c": 104.8
+    },
+    {
+      "i": 16,
+      "o": 104.8,
+      "h": 105.9,
+      "l": 103.6,
+      "c": 105.1
+    },
+    {
+      "i": 17,
+      "o": 105.1,
+      "h": 106.2,
+      "l": 103.9,
+      "c": 105.4
+    },
+    {
+      "i": 18,
+      "o": 105.4,
+      "h": 106.5,
+      "l": 104.2,
+      "c": 105.7
+    },
+    {
+      "i": 19,
+      "o": 105.7,
+      "h": 106.8,
+      "l": 104.5,
+      "c": 106.0
+    },
+    {
+      "i": 20,
+      "o": 106.0,
+      "h": 107.1,
+      "l": 104.8,
+      "c": 106.3
+    },
+    {
+      "i": 21,
+      "o": 106.3,
+      "h": 107.4,
+      "l": 105.1,
+      "c": 106.6
+    },
+    {
+      "i": 22,
+      "o": 106.6,
+      "h": 107.7,
+      "l": 105.4,
+      "c": 106.9
+    },
+    {
+      "i": 23,
+      "o": 106.9,
+      "h": 108.0,
+      "l": 105.7,
+      "c": 107.2
+    },
+    {
+      "i": 24,
+      "o": 107.2,
+      "h": 108.3,
+      "l": 106.0,
+      "c": 107.5
+    },
+    {
+      "i": 25,
+      "o": 107.5,
+      "h": 108.6,
+      "l": 106.3,
+      "c": 107.8
+    },
+    {
+      "i": 26,
+      "o": 107.8,
+      "h": 108.9,
+      "l": 106.6,
+      "c": 108.1
+    },
+    {
+      "i": 27,
+      "o": 108.1,
+      "h": 109.2,
+      "l": 106.9,
+      "c": 108.4
+    },
+    {
+      "i": 28,
+      "o": 108.4,
+      "h": 109.5,
+      "l": 107.2,
+      "c": 108.7
+    },
+    {
+      "i": 29,
+      "o": 108.7,
+      "h": 109.8,
+      "l": 107.5,
+      "c": 109.0
+    },
+    {
+      "i": 30,
+      "o": 109.0,
+      "h": 110.1,
+      "l": 107.8,
+      "c": 109.3
+    },
+    {
+      "i": 31,
+      "o": 109.3,
+      "h": 110.4,
+      "l": 108.1,
+      "c": 109.6
+    },
+    {
+      "i": 32,
+      "o": 109.6,
+      "h": 110.7,
+      "l": 108.4,
+      "c": 109.9
+    },
+    {
+      "i": 33,
+      "o": 109.9,
+      "h": 111.0,
+      "l": 108.7,
+      "c": 110.2
+    },
+    {
+      "i": 34,
+      "o": 110.2,
+      "h": 111.3,
+      "l": 109.0,
+      "c": 110.5
+    },
+    {
+      "i": 35,
+      "o": 110.5,
+      "h": 111.6,
+      "l": 109.3,
+      "c": 110.8
+    },
+    {
+      "i": 36,
+      "o": 110.8,
+      "h": 111.9,
+      "l": 109.6,
+      "c": 111.1
+    },
+    {
+      "i": 37,
+      "o": 111.1,
+      "h": 112.2,
+      "l": 109.9,
+      "c": 111.4
+    },
+    {
+      "i": 38,
+      "o": 111.4,
+      "h": 112.5,
+      "l": 110.2,
+      "c": 111.7
+    },
+    {
+      "i": 39,
+      "o": 111.7,
+      "h": 112.8,
+      "l": 110.5,
+      "c": 112.0
+    },
+    {
+      "i": 40,
+      "o": 113.0,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.0
+    },
+    {
+      "i": 41,
+      "o": 113.05,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.05
+    },
+    {
+      "i": 42,
+      "o": 113.1,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.1
+    },
+    {
+      "i": 43,
+      "o": 113.15,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.15
+    },
+    {
+      "i": 44,
+      "o": 113.2,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.2
+    },
+    {
+      "i": 45,
+      "o": 113.25,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.25
+    },
+    {
+      "i": 46,
+      "o": 113.3,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.3
+    },
+    {
+      "i": 47,
+      "o": 113.35,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.35
+    },
+    {
+      "i": 48,
+      "o": 113.4,
+      "h": 114.0,
+      "l": 112.8,
+      "c": 113.4
+    },
+    {
+      "i": 49,
+      "o": 113.0,
+      "h": 113.4,
+      "l": 112.6,
+      "c": 112.8
+    },
+    {
+      "i": 50,
+      "o": 112.8,
+      "h": 114.3,
+      "l": 112.5,
+      "c": 114.1
+    },
+    {
+      "i": 51,
+      "o": 114.1,
+      "h": 114.2,
+      "l": 112.4,
+      "c": 112.6
+    },
+    {
+      "i": 52,
+      "o": 112.6,
+      "h": 114.5,
+      "l": 112.5,
+      "c": 114.3
+    }
+  ],
+  "expected": {
+    "atr": 1.7542498798028672,
+    "setup": {
+      "detector": "PULLBACK_H",
+      "found": true,
+      "setup_type": "H2",
+      "legs": 2,
+      "state": "CONFIRMED",
+      "direction": 1,
+      "signal_bar": 52,
+      "anchor_bar": 50,
+      "extreme_bar": 51,
+      "extreme_price": 112.4,
+      "stop_price": 112.4,
+      "reference_price": 114.5,
+      "basis": {
+        "detector": "the H-family detector, which is the one that reads a bull trend",
+        "found": "a setup was produced rather than an empty result",
+        "setup_type": "2 counter-trend legs completed and the trend resumed, so this is the second entry rather than the first",
+        "legs": "leg1 at bar 50 and the deeper low at bar 51, both inside the window",
+        "state": "a resumption bar exists, which is the only thing separating CONFIRMED from PROVISIONAL",
+        "direction": "+1, a bull pullback, because the EMA20/EMA50 context gate reads bull",
+        "signal_bar": "52, the resumption bar, which is the bar after the deeper low",
+        "anchor_bar": "50, leg 1, the first higher high in the window",
+        "extreme_bar": "51, the deeper low, the bar the pullback must respect",
+        "extreme_price": "112.4, the low of bar 51",
+        "stop_price": "112.4, the min low over the whole window, which here is bar 51 itself",
+        "reference_price": "114.5, the high of bar 52, the bar the entry is taken on"
+      }
+    },
+    "decision": {
+      "action": "BUY",
+      "reason": "RANKED_CANDIDATE",
+      "subject": "PULLBACK_H#0",
+      "direction": 1,
+      "bull_ppts": 95.0,
+      "bear_ppts": 0.0,
+      "is_probability": false,
+      "is_actionable": true,
+      "basis": {
+        "action": "the only eligible candidate is the pullback, and its plan direction is +1",
+        "reason": "decide() ranked an eligible candidate rather than abstaining",
+        "subject": "PULLBACK_H#0, the detector name and the finding's position in the list",
+        "direction": "1, taken from the winning plan",
+        "bull_ppts": "95.0: a CONFIRMED pullback scores 1.0 on its own source and market state scores 0.9, and the mean of the two is 0.95",
+        "bear_ppts": "0.0, because no bear candidate was eligible at all",
+        "is_probability": "false, and the decision layer never presents a score as a probability",
+        "is_actionable": "true, because an action was returned and it is not a no-trade"
+      }
+    },
+    "plan": {
+      "entry": 114.5,
+      "stop": 111.9614375300493,
+      "target": 118.00849975960574,
+      "reward_to_risk": 1.382081316152866,
+      "entry_basis": "SETUP_REFERENCE",
+      "stop_basis": "PULLBACK_EXTREME",
+      "target_basis": "ATR_FALLBACK",
+      "has_structural_stop": true,
+      "basis": {
+        "entry": "114.5, the setup's own reference, which is the resumption bar's high",
+        "stop": "112.4 minus the 0.25 * atr buffer of 0.4386, so 111.9614",
+        "target": "114.5 plus 2.0 * atr of 3.5085, so 118.0085. The pullback family projects no target, so the fallback is used and is named as such rather than dressed up",
+        "reward_to_risk": "3.5085 / 2.5386 = 1.3821, above the declared min_rr of 1.0",
+        "entry_basis": "SETUP_REFERENCE, because the plan took its entry from the setup rather than from the current close",
+        "stop_basis": "PULLBACK_EXTREME, because the stop came from a level the market produced",
+        "target_basis": "ATR_FALLBACK, which is an honest admission that no projected level was available",
+        "has_structural_stop": "true, because the stop basis is not ATR_FALLBACK"
+      }
+    }
+  },
+  "must_not": {
+    "a_confirmed_first_entry_somewhere_in_the_run": "H1 with state CONFIRMED is impossible by construction: CONFIRMED requires two legs",
+    "the_plan_stops_on_an_atr_fallback": "a PULLBACK plan has a structural level available, so claiming no structural stop would mean the extreme was not read",
+    "the_decision_is_an_abstention": "this fixture exists to check a tradeable H2, not the abstention path"
+  },
+  "falsifiers": [
+    {
+      "what": "lower bar 52's high to 114.1, so it no longer exceeds bar 51's high of 114.2",
+      "predicts": "leg2_low is still 51 and legs is still 2, but state drops to PROVISIONAL with signal_bar -1. Two counter-trend legs and no resumption is a second leg, not an entry, and H1_H2_L1_L2.md section 3 records the old implementation getting this wrong by calling it a completed H1"
+    },
+    {
+      "what": "raise bar 51's low from 112.4 to 112.6, so it no longer breaks level_at_1",
+      "predicts": "leg2_low is never found, so the setup falls back to a first entry with 1 leg and no deeper low"
+    },
+    {
+      "what": "append one more bar after the resumption",
+      "predicts": "nothing in the reading at bar 52 moves, because the analysis at a bar index cannot depend on later bars"
+    },
+    {
+      "what": "delete bar 52 and move last_closed back to 51",
+      "predicts": "the window start moves from 40 to 39, pulling an uptrend bar into the window, so leg1 is found at bar 40 and the setup is a first entry. The window depends on max_pb_bars, not on the market, which is why this fixture pins the config"
+    }
+  ]
+}

@@ -1,0 +1,328 @@
+{
+  "id": "golden_double_001",
+  "concept": "Micro double top, and the fact that a double is never actionable",
+  "spec": "docs/algorithms/DOUBLE_PATTERNS.md",
+  "question": "Two highs 0.1 apart separated by a 3.3 trough. Is it a micro double top, and can a pattern with no evidence adapter ever be the ranked answer?",
+  "config": {},
+  "last_closed": 31,
+  "chart": [
+    "0..28   a flat range between 104.0 and 106.0",
+    "29      first top: high 106.2, closing on the high",
+    "30      the trough between the two tops: low 103.0",
+    "31      second top: high 106.3, closing back down"
+  ],
+  "derivation": [
+    "A micro double top is two bars inside a 5-bar window whose highs match within",
+    "  double_tol_atr * atr = 0.25 * 2.1486 = 0.537.",
+    "Bars 29 and 31 are both inside the window ending at 31, and |106.3 - 106.2| = 0.1, well",
+    "  inside 0.537, so they match.",
+    "The separating bar 30 must reach at least 0.5 * 0.5 * atr = 0.25*atr = 0.537 below",
+    "  min(106.2, 106.3) = 106.2, i.e. a low of at most 105.66. Bar 30's low is 103.0, so the",
+    "  separation requirement is met by 2.66, which is what stops two adjacent bars from",
+    "  passing as a double.",
+    "Direction is -1: a double top is resistance, so the pattern itself is bearish.",
+    "The structural claim of the fixture is the VETO, not the detection: there is no evidence",
+    "  adapter for the DOUBLE_TOP and DOUBLE_BOTTOM families, so the candidate's factors are",
+    "  all shared market context and NO_OWN_EVIDENCE blocks it. No double can be the ranked",
+    "  answer, ever, and this fixture is where that is pinned."
+  ],
+  "bars": [
+    {
+      "i": 0,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 1,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 2,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 3,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 4,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 5,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 6,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 7,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 8,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 9,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 10,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 11,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 12,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 13,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 14,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 15,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 16,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 17,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 18,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 19,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 20,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 21,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 22,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 23,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 24,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 25,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 26,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 27,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 28,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 29,
+      "o": 105.0,
+      "h": 106.2,
+      "l": 103.9,
+      "c": 106.0
+    },
+    {
+      "i": 30,
+      "o": 106.0,
+      "h": 106.1,
+      "l": 103.0,
+      "c": 103.6
+    },
+    {
+      "i": 31,
+      "o": 103.6,
+      "h": 106.3,
+      "l": 103.5,
+      "c": 104.2
+    }
+  ],
+  "expected": {
+    "atr": 2.1485787172011657,
+    "setup": {
+      "detector": "DOUBLE_TOP_MICRO",
+      "found": true,
+      "pattern_type": "MICRO_DOUBLE_TOP",
+      "direction": -1,
+      "bar1": 29,
+      "bar2": 31,
+      "price1": 106.2,
+      "price2": 106.3,
+      "is_micro": true,
+      "level": 0.0,
+      "is_tested": false,
+      "breakout_bar": -1,
+      "basis": {
+        "bar1": "29, the earlier of the two bars whose highs match",
+        "bar2": "31, the later one, and the last bar of the 5-bar window being examined",
+        "breakout_bar": "-1 for the same reason",
+        "detector": "the micro double top detector, one of the four double detectors the registry runs",
+        "direction": "-1, a double top is resistance and the pattern is bearish",
+        "found": "a pattern was reported rather than an empty result",
+        "is_micro": "true because the construction used bar extremes, not confirmed swings",
+        "is_tested": "false, for the same reason: nothing has populated the context",
+        "level": "0.0 because the registry calls the bare detector and never runs classify_double_context, so the context fields stay at their defaults",
+        "pattern_type": "built from bar extremes inside a 5-bar window, so micro",
+        "price1": "106.2, the high of bar 29, which is the first of the two matching highs",
+        "price2": "106.3, the high of bar 31, 0.1 above bar 29's and well inside the 0.537 tolerance"
+      }
+    },
+    "decision": {
+      "action": "SELL",
+      "reason": "RANKED_CANDIDATE",
+      "subject": "REVERSAL_BEAR#1",
+      "direction": -1,
+      "is_probability": false,
+      "is_actionable": true,
+      "basis": {
+        "action": "a reversal is the only eligible candidate and its plan direction is -1",
+        "reason": "decide() ranked an eligible candidate rather than abstaining",
+        "subject": "REVERSAL_BEAR#1. The winner is a reversal, NOT the double. The double is reported as a setup and given a plan, and is then vetoed",
+        "direction": "-1, taken from the winning plan",
+        "is_probability": "false, and no score in this project is a probability",
+        "is_actionable": "true, because an action was returned and it is not a no-trade"
+      }
+    },
+    "blocking_vetoes": [
+      {
+        "code": "NO_OWN_EVIDENCE",
+        "subject": "DOUBLE_TOP_MICRO",
+        "basis": "no evidence adapter exists for the double families, so the only factors behind the candidate are shared market context"
+      },
+      {
+        "code": "NO_OWN_EVIDENCE",
+        "subject": "DOUBLE_BOTTOM_MICRO",
+        "basis": "the same, for the bottom detector that the same three bars also satisfy"
+      }
+    ]
+  },
+  "must_not": {
+    "the_ranked_subject_is_a_double": "a double has no evidence adapter and can never be ranked; a golden that let one win would be recording a decision the project explicitly refuses to make",
+    "the_context_fields_are_populated": "the registry does not run classify_double_context, so level, is_tested and breakout_bar must stay at their defaults. A populated value would mean the context had been filled in by something that never ran"
+  },
+  "falsifiers": [
+    {
+      "what": "raise bar 31's high to 107.5, more than 0.537 above bar 29's",
+      "predicts": "the two highs no longer match, so the pair (29, 31) cannot be a double at all"
+    },
+    {
+      "what": "lift bar 30's low to 105.9, so the trough is only 0.3 below the 106.2 base",
+      "predicts": "the (29, 31) pair stops qualifying, because separation must be at least 0.25 * atr = 0.489. The pattern is NOT removed: the detector scans every pair in the window and falls back to (28, 31) at highs 106.0 and 106.3, which are separated by bar 29's 103.9 low. Lifting the trough moves the double earlier rather than deleting it, which is worth knowing"
+    }
+  ]
+}

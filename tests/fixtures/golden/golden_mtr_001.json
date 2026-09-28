@@ -1,0 +1,323 @@
+{
+  "id": "golden_mtr_001",
+  "concept": "Major trend reversal, assessed leg by leg: three of four legs present",
+  "spec": "docs/algorithms/REVERSALS.md",
+  "question": "A two-leg decline, a rally through the EMA, a dip back onto the EMA that holds, then five consecutive pushes. Which of the four legs are present, and is the score a count?",
+  "config": {},
+  "last_closed": 26,
+  "chart": [
+    "0..14   flat at 100.0, so the EMA20 and EMA50 are flat together near 100.0",
+    "15,16   two down legs to 95.4, establishing a bear move",
+    "17,18   the first rally bars, still at or below the EMA",
+    "19      the decisive up bar: close 101.2 against an EMA near 99.4, so this is the",
+    "        first bar clearly on the bull side",
+    "20      dips back to 99.2 while the EMA is 99.439, touching it and closing above it:",
+    "        this is the retest-and-hold leg",
+    "21      a small bar that makes neither a higher high nor a lower low, so it breaks",
+    "        the run of pushes",
+    "22..26  five consecutive pushes: each closes higher and makes a higher high"
+  ],
+  "derivation": [
+    "Leg 1 EMA_BREAK: scanning back from bar 25 for the first bar clearly on the bear side of",
+    "  its own EMA, the winner is bar 17, whose close 97.6 sits under an EMA near 99.24 by far",
+    "  more than the 0.25*atr tolerance of 0.508. Bars 18 and 20 are NEUTRAL, not bear side:",
+    "  their closes sit within tolerance of the EMA, and the scan skips a neutral bar rather",
+    "  than counting it as a cross. cross_bar = 17.",
+    "Leg 2 EMA_RETEST_HELD: the loop scans forward from bar 18 and takes the FIRST bar that",
+    "  dips to within tolerance of the EMA and closes back above it. Bar 18 already does:",
+    "  low 97.3 is under ema + tol = 99.742 and close 99.2 is over ema - tol = 98.726. An earlier",
+    "  draft of this fixture named bar 20, which is also true but is not where the scan stops.",
+    "  The honest reading is that in a decisive rally this leg is easy to pass, and the",
+    "  fixture records it that way rather than implying it is a strong filter.",
+    "Leg 3 SWING_BREAKOUT_WITH_REVERSAL: the breakout at this bar is the breakout BAR itself,",
+    "  so its outcome is PENDING, not FOLLOW. The leg demands a confirmed follow-through and",
+    "  so it is absent. This is the honest reading and the fixture names it rather than",
+    "  quietly counting 3 legs as 4.",
+    "Leg 4 REVERSAL_PRESSURE: bars 22..26 are 5 consecutive bars each closing higher and",
+    "  making a higher high, which is the declared minimum of 5, so pressure_ok with",
+    "  pressure_count 5.",
+    "score = 25 * 3 = 75, and a verdict of 3 legs is MINOR, not MAJOR. The score is a count",
+    "  of legs and nothing else, which is why 75 and not 75 percent.",
+    "MISSING: SWING_BREAKOUT_WITH_REVERSAL, named in the spec as the leg a breakout that has",
+    "  not followed through cannot satisfy."
+  ],
+  "bars": [
+    {
+      "i": 0,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 1,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 2,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 3,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 4,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 5,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 6,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 7,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 8,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 9,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 10,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 11,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 12,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 13,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 14,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.0
+    },
+    {
+      "i": 15,
+      "o": 100.0,
+      "h": 100.0,
+      "l": 97.6,
+      "c": 97.8
+    },
+    {
+      "i": 16,
+      "o": 97.8,
+      "h": 98.0,
+      "l": 95.6,
+      "c": 95.8
+    },
+    {
+      "i": 17,
+      "o": 95.8,
+      "h": 98.0,
+      "l": 95.4,
+      "c": 97.6
+    },
+    {
+      "i": 18,
+      "o": 97.6,
+      "h": 99.5,
+      "l": 97.3,
+      "c": 99.2
+    },
+    {
+      "i": 19,
+      "o": 99.2,
+      "h": 101.4,
+      "l": 99.0,
+      "c": 101.2
+    },
+    {
+      "i": 20,
+      "o": 101.2,
+      "h": 101.6,
+      "l": 99.2,
+      "c": 99.6
+    },
+    {
+      "i": 21,
+      "o": 99.6,
+      "h": 100.6,
+      "l": 99.4,
+      "c": 100.4
+    },
+    {
+      "i": 22,
+      "o": 100.4,
+      "h": 101.9,
+      "l": 100.2,
+      "c": 101.7
+    },
+    {
+      "i": 23,
+      "o": 101.7,
+      "h": 103.4,
+      "l": 101.5,
+      "c": 103.2
+    },
+    {
+      "i": 24,
+      "o": 103.2,
+      "h": 105.0,
+      "l": 103.0,
+      "c": 104.8
+    },
+    {
+      "i": 25,
+      "o": 104.8,
+      "h": 106.6,
+      "l": 104.6,
+      "c": 106.4
+    },
+    {
+      "i": 26,
+      "o": 106.4,
+      "h": 108.2,
+      "l": 106.2,
+      "c": 108.0
+    }
+  ],
+  "expected": {
+    "atr": 2.0303783157110113,
+    "setup": {
+      "detector": "REVERSAL_BULL",
+      "found": true,
+      "verdict": "MINOR",
+      "score": 75,
+      "direction": 1,
+      "ema_break": true,
+      "retest": true,
+      "bo_follow": false,
+      "pressure_ok": true,
+      "pressure_count": 5,
+      "cross_bar": 17,
+      "missing": [
+        "SWING_BREAKOUT_WITH_REVERSAL"
+      ],
+      "basis": {
+        "detector": "the bull-side reversal detector, registered separately from the bear one",
+        "found": "a reversal was reported rather than an empty result",
+        "verdict": "MINOR, because 3 of 4 legs is not 4; MAJOR requires all four",
+        "score": "75 = 25 * 3, a count of satisfied legs and never a percentage or a probability",
+        "direction": "+1, a bull reversal, which is the direction this detector was asked about",
+        "ema_break": "bar 17 is the most recent bar clearly on the bear side of its own EMA within the 10-bar lookback",
+        "retest": "bar 18 dipped to within 0.508 of the EMA and closed back on the bull side, and it is the first such bar after the cross",
+        "bo_follow": "false, because the breakout is unresolved at this bar. A leg that demands follow-through cannot be satisfied by the breakout bar itself",
+        "pressure_ok": "5 consecutive higher-high higher-close bars, the declared minimum of 5",
+        "pressure_count": "5 such bars, capped by the scanner at 6",
+        "cross_bar": "17, the bar the EMA leg is measured from",
+        "missing": "the 1 leg that would have made this MAJOR"
+      }
+    },
+    "decision": {
+      "action": "BUY",
+      "reason": "RANKED_CANDIDATE",
+      "subject": "REVERSAL_BULL#1",
+      "direction": 1,
+      "bull_ppts": 100.0,
+      "bear_ppts": 0.0,
+      "is_probability": false,
+      "is_actionable": true,
+      "basis": {
+        "action": "the reversal is the only eligible candidate and its plan direction is +1",
+        "reason": "decide() ranked an eligible candidate rather than abstaining",
+        "subject": "REVERSAL_BULL#1, the detector name and the finding's position",
+        "direction": "1, taken from the winning plan",
+        "bull_ppts": "100.0: a MINOR reversal and a MAJOR one both score 1.0 on the verdict factor, so the score of 75 does not reach the evidence. The fixture records that rather than claiming it should",
+        "bear_ppts": "0.0, because no bear candidate was eligible",
+        "is_probability": "false, and no score in this project is a probability",
+        "is_actionable": "true, because an action was returned and it is not a no-trade"
+      }
+    },
+    "plan": {
+      "entry": 108.0,
+      "stop": 105.969621684289,
+      "target": 112.06075663142202,
+      "reward_to_risk": 2.0,
+      "entry_basis": "LAST_CLOSE",
+      "stop_basis": "ATR_FALLBACK",
+      "target_basis": "ATR_FALLBACK",
+      "has_structural_stop": false,
+      "basis": {
+        "entry": "108.0, the close at last_closed, because the reversal family carries no entry level of its own",
+        "stop": "108.0 minus 1.0 * atr of 2.0304, so 105.9696. The family supplies no level, so this is the volatility stop and the plan says so",
+        "target": "108.0 plus 2.0 * atr of 4.0608, so 112.0608",
+        "reward_to_risk": "exactly 2.0, which is a property of a 2.0*atr target against a 1.0*atr stop and not a view about the trade",
+        "entry_basis": "LAST_CLOSE, because the entry is the current price",
+        "stop_basis": "ATR_FALLBACK, because there is no structural level to put a stop behind",
+        "target_basis": "ATR_FALLBACK, for the same reason",
+        "has_structural_stop": "false, and the plan reports the stop as a fallback rather than dressing it up"
+      }
+    }
+  },
+  "must_not": {
+    "the_verdict_is_major": "MAJOR requires all four legs and the breakout has not followed through; upgrading three legs to four would be the single most flattering error available here",
+    "the_score_is_not_a_multiple_of_twenty_five": "the score is a leg count times 25, and a golden that let it drift would be a claim about probability",
+    "the_plan_claims_a_structural_stop": "the reversal family has no level, so claiming a structural stop would mean inventing one"
+  },
+  "falsifiers": [
+    {
+      "what": "append one more bar after bar 26",
+      "predicts": "the reversal disappears entirely: cross_bar 17 leaves the 10-bar lookback window and leg 1 is no longer found. A reversal is a timely reading, and this pins exactly how timely"
+    },
+    {
+      "what": "hold bar 24's high at 103.4, level with bar 23, so it makes no new high",
+      "predicts": "the run of pushes breaks, pressure_count falls from 5 to 2, pressure_ok becomes false and the score drops from 75 to 50. A reversal without pressure behind it is a smaller claim"
+    }
+  ]
+}

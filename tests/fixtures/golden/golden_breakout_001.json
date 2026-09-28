@@ -1,0 +1,327 @@
+{
+  "id": "golden_breakout_001",
+  "concept": "Close beyond a flat range high, with no confirmed swing to lean on",
+  "spec": "docs/algorithms/BREAKOUTS.md",
+  "question": "Twenty-eight bars of a 2-point range, then a close 1.2 above the range high. Does the engine call it a breakout, and which reference does it use when there is no swing?",
+  "config": {},
+  "last_closed": 29,
+  "chart": [
+    "0..27   a flat range: every bar opens, closes at 105.0 between 104.0 and 106.0",
+    "28      a rally bar closing 105.8, whose high 106.2 becomes the range extreme",
+    "29      the breakout bar: close 107.2, which is 1.0 above the 106.2 reference"
+  ],
+  "derivation": [
+    "Tolerance is tol_atr * atr = 0.10 * 1.9923 = 0.199. A break needs a CLOSE beyond",
+    "  the reference by more than that, so the threshold is 106.2 + 0.199 = 106.399.",
+    "Bar 29 closes 107.2 > 106.399, so this is a break.",
+    "Reference selection: a swing reference is preferred, but a flat series has no confirmed",
+    "  swings, so the N-bar reference is used over the 20 bars ending at bar 28. That window's",
+    "  highest high is bar 28's 106.2, not the 106.0 the first 28 bars share. reference_kind",
+    "  is therefore N_BAR, and this fixture is what pins that difference.",
+    "State: the breakout bar IS bar 29, so there is no later bar to resolve it and the state",
+    "  is BREAKOUT with outcome PENDING. A close back through 106.0 would make it FAILED,",
+    "  because failed takes precedence over pending.",
+    "Plan: entry = the close at last_closed (LAST_CLOSE, 107.2); stop = reference_price minus",
+    "  0.25*atr = 106.2 - 0.498 = 105.702 (BREAKOUT_REFERENCE); target = entry + 2.0*atr.",
+    "Tradeable: rr = 3.9847 / 1.4981 = 2.660, above min_rr."
+  ],
+  "bars": [
+    {
+      "i": 0,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 1,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 2,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 3,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 4,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 5,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 6,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 7,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 8,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 9,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 10,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 11,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 12,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 13,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 14,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 15,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 16,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 17,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 18,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 19,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 20,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 21,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 22,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 23,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 24,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 25,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 26,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 27,
+      "o": 105.0,
+      "h": 106.0,
+      "l": 104.0,
+      "c": 105.0
+    },
+    {
+      "i": 28,
+      "o": 105.0,
+      "h": 106.2,
+      "l": 104.1,
+      "c": 105.8
+    },
+    {
+      "i": 29,
+      "o": 105.8,
+      "h": 107.5,
+      "l": 105.7,
+      "c": 107.2
+    }
+  ],
+  "expected": {
+    "atr": 1.9923469387755104,
+    "setup": {
+      "detector": "BREAKOUT",
+      "found": true,
+      "state": "BREAKOUT",
+      "outcome": "PENDING",
+      "direction": 1,
+      "breakout_bar": 29,
+      "reference_price": 106.2,
+      "reference_kind": "N_BAR",
+      "ref_is_swing": false,
+      "decide_bar": -1,
+      "trap": false,
+      "second_leg_trap": false,
+      "pullback_bar": -1,
+      "basis": {
+        "breakout_bar": "the bar whose close cleared the reference, 29",
+        "decide_bar": "-1 because no follow-through bar has been seen",
+        "detector": "the breakout detector, which is the one that reads a close beyond a reference",
+        "direction": "+1, a close above the reference, so the break is upward",
+        "found": "a breakout was reported rather than an empty result",
+        "outcome": "PENDING for the same reason: no later bar exists to confirm or fail it",
+        "pullback_bar": "price has not returned to within tolerance of the reference",
+        "ref_is_swing": "the mirror of reference_kind, kept as its own field by the spec",
+        "reference_kind": "N_BAR, because the series is flat and produced no confirmed swing",
+        "reference_price": "highest high of the 20 bars ending at 28, which is bar 28's 106.2",
+        "second_leg_trap": "the breakout has not reversed back through the reference",
+        "state": "the breakout bar is the bar being analysed, so nothing has resolved it yet",
+        "trap": "no earlier same-direction breakout in the last 20 bars failed"
+      }
+    },
+    "decision": {
+      "action": "BUY",
+      "reason": "RANKED_CANDIDATE",
+      "subject": "BREAKOUT#0",
+      "direction": 1,
+      "bull_ppts": 50.0,
+      "bear_ppts": 0.0,
+      "is_probability": false,
+      "is_actionable": true,
+      "basis": {
+        "action": "the breakout is the only eligible candidate and its plan direction is +1",
+        "reason": "decide() ranked an eligible candidate rather than abstaining",
+        "subject": "BREAKOUT#0, the detector name and the finding's position",
+        "direction": "1, taken from the winning plan",
+        "bull_ppts": "50.0: a PENDING breakout scores 0.5 on its own source and market state scores 0.5, so the mean is 0.5",
+        "bear_ppts": "0.0, because no bear candidate was eligible",
+        "is_probability": "false, and no score in this project is a probability",
+        "is_actionable": "true, because an action was returned and it is not a no-trade"
+      }
+    },
+    "plan": {
+      "entry": 107.2,
+      "stop": 105.70191326530613,
+      "target": 111.18469387755103,
+      "reward_to_risk": 2.659855257556421,
+      "entry_basis": "LAST_CLOSE",
+      "stop_basis": "BREAKOUT_REFERENCE",
+      "target_basis": "ATR_FALLBACK",
+      "has_structural_stop": true,
+      "basis": {
+        "entry": "107.2, the close of the bar being analysed, because a breakout carries no forward-looking entry level",
+        "stop": "the reference 106.2 minus the 0.25 * atr buffer of 0.4981, so 105.7019",
+        "target": "107.2 plus 2.0 * atr of 3.9847, so 111.1847. The breakout family projects no target, so the fallback is used and is named",
+        "reward_to_risk": "3.9847 / 1.4981 = 2.6599, above the declared min_rr of 1.0",
+        "entry_basis": "LAST_CLOSE, because the entry is the current price rather than a level",
+        "stop_basis": "BREAKOUT_REFERENCE, because the stop came from the level that was broken",
+        "target_basis": "ATR_FALLBACK, which admits that no projected level was available",
+        "has_structural_stop": "true, because the stop basis is not ATR_FALLBACK"
+      }
+    }
+  },
+  "must_not": {
+    "the_reference_is_reported_as_a_swing": "a flat series has no confirmed swings, so claiming a swing reference would mean inventing structure that is not there",
+    "the_outcome_is_reported_as_resolved": "nothing has followed the breakout bar, so FOLLOW_THROUGH or FAILED would be a statement about a bar that does not exist"
+  },
+  "falsifiers": [
+    {
+      "what": "close bar 29 at 106.3 instead of 107.2",
+      "predicts": "no breakout: 106.3 is inside the 106.399 threshold, so the tolerance does real work and is not decorative"
+    },
+    {
+      "what": "add a bar 30 that closes back at 105.0, below the reference",
+      "predicts": "outcome becomes FAILED with decide_bar 30, because failed takes precedence over pending"
+    }
+  ]
+}
