@@ -144,18 +144,23 @@ def test_analyze_produces_real_output_not_a_placeholder() -> None:
 
 
 def test_the_placeholder_reason_is_gone() -> None:
-    """`ENGINE_INITIALIZING` was the old marker; it must not come back."""
+    """`ENGINE_INITIALIZING` was the old marker; it must not come back. Neither
+    must `DECISION_ENGINE_NOT_IMPLEMENTED`, which is what the pipeline reported
+    while the decision engine did not exist."""
     result = Analyzer(CFG).analyze(_bars())
     assert result.decision["reason"] != "ENGINE_INITIALIZING"
+    assert result.decision["reason"] != "DECISION_ENGINE_NOT_IMPLEMENTED"
     assert "PENDING_PHASE4" not in json.dumps(result.to_dict())
 
 
 def test_every_specification_layer_is_present_and_reports_whether_it_ran() -> None:
     """An empty layer and an absent layer mean different things.
 
-    The specification names six layers the result did not have at all. They exist
-    now, and `layers` records which ran, so a caller can tell "no channel found"
-    from "channel detection not implemented".
+    The specification names six layers the result did not have at all, and named
+    two more — trade plans and the decision — that existed as fields while the
+    layers behind them did not. All of them now run, so `unimplemented_layers` is
+    empty for a normal analysis, and the degenerate-input tests below assert the
+    opposite: nothing ran.
     """
     result = Analyzer(CFG).analyze(_bars())
     for name in (
@@ -167,10 +172,161 @@ def test_every_specification_layer_is_present_and_reports_whether_it_ran() -> No
         "evidence",
     ):
         assert hasattr(result, name), name
-    assert result.layers["swings"] is True
-    assert result.layers["trade_plans"] is False
-    assert result.layers["decision"] is False
-    assert set(result.unimplemented_layers) == {"trade_plans", "decision"}
+    assert all(result.layers.values()), result.unimplemented_layers
+    assert result.unimplemented_layers == []
+
+
+def test_the_trade_plan_and_decision_layers_produce_real_output() -> None:
+    """Phase 15 wired them. A regression back to `NO_TRADE` /
+    `DECISION_ENGINE_NOT_IMPLEMENTED` with an empty `trade_plans` must fail here.
+    """
+    result = Analyzer(CFG).analyze(_bars())
+
+    assert result.trade_plans, "no trade plans for a 60-bar trending series"
+    for plan in result.trade_plans:
+        assert plan["is_recommendation"] is False
+        assert plan["entry_basis"] and plan["stop_basis"] and plan["target_basis"]
+    assert result.decision["action"] in {"BUY", "SELL", "WAIT", "NO_TRADE"}
+    assert result.decision["reason"] != "NO_CANDIDATES", (
+        "the fixture is trending and should produce at least one setup"
+    )
+    assert result.decision["is_probability"] is False
+    assert result.decision["explanation"]
+
+
+def test_disabling_the_decision_layer_withholds_the_decision_but_not_the_plans() -> None:
+    """`enable_decision=False` means the engine declines to answer. It must never
+    mean "answer anyway", and it must not take the other layers down with it."""
+    result = Analyzer(AnalyzerConfig(range_lookback=20, enable_decision=False)).analyze(
+        _bars()
+    )
+
+    assert result.decision["action"] == "NO_TRADE"
+    assert result.decision["reason"] == "DECISION_DISABLED"
+    assert result.trade_plans, "the plan layer runs independently of the decision"
+    assert result.setups
+
+
+def test_the_pipeline_reads_the_registry_rather_than_calling_detectors() -> None:
+    """`ARCHITECTURE.md` §9 and `SETUP_ENGINE.md` §5 have deferred this since
+    Phase 12: the pipeline held a second, parallel detection path. It does not
+    any more, and this is the assertion that it will not start again.
+
+    Two things follow from reading the registry that a direct call could not give:
+    the run reports **every** detector it executed, and `setups` now covers the
+    doubles and fading measured moves the pipeline never ran itself.
+    """
+    result = Analyzer(CFG).analyze(_bars())
+
+    assert len(result.detectors["executed"]) == 11, result.detectors["executed"]
+    assert result.detectors["failed"] == []
+    assert result.detectors["skipped"] == {}
+    for setup in result.setups:
+        assert setup["detector"] in result.detectors["executed"]
+        assert setup["setup_family"] in (
+            "PULLBACK",
+            "BREAKOUT",
+            "REVERSAL",
+            "MEASURED_MOVE",
+            "FADING_MEASURED_MOVE",
+            "DOUBLE_TOP",
+            "DOUBLE_BOTTOM",
+        )
+
+
+def test_a_measured_move_keeps_its_own_projection_family() -> None:
+    """The pipeline's family key is `setup_family` precisely so it does not
+    overwrite a payload's narrower use of `family` — `RANGE`, `CHANNEL`, `GAP`."""
+    result = Analyzer(CFG).analyze(_bars())
+    moves = [s for s in result.setups if s["detector"] == "MEASURED_MOVE"]
+
+    assert moves, "fixture should produce a measured move"
+    for move in moves:
+        assert move["setup_family"] == "MEASURED_MOVE"
+        assert move["family"] in ("REGULAR", "CHANNEL", "RANGE", "GAP", "INVERSE")
+
+
+def test_the_per_family_layers_are_the_same_entries_as_setups() -> None:
+    """Two of the eleven shipped detectors are registered with the default `kind`,
+    so grouping by `kind` alone silently lost them. They are also built by one
+    function, so the two views cannot describe different runs."""
+    result = Analyzer(CFG).analyze(_bars())
+
+    assert result.pullbacks == [s for s in result.setups if s["setup_family"] == "PULLBACK"]
+    assert result.breakouts == [s for s in result.setups if s["setup_family"] == "BREAKOUT"]
+    assert result.reversals == [s for s in result.setups if s["setup_family"] == "REVERSAL"]
+
+
+def test_a_detector_failure_is_promoted_to_a_result_warning() -> None:
+    """The registry contains a failure rather than propagating it, so a run can come
+    back with fewer setups than it should. That must be visible at the top level, or
+    "nothing found" and "something broke" look alike."""
+    from albrooks.setups.base import SetupContext, SetupFinding, adapt
+    from albrooks.setups.registry import SetupRegistry
+
+    def broken(ctx: SetupContext) -> None:
+        raise RuntimeError("deliberate")
+
+    def works(ctx: SetupContext) -> list[SetupFinding]:
+        return [
+            SetupFinding(
+                detector="BREAKOUT",
+                kind="DEFAULT",
+                direction=1,
+                found=True,
+                payload={
+                    "found": True,
+                    "direction": 1,
+                    "setup_type": "H2",
+                    "state": "CONFIRMED",
+                    "reference_price": ctx.bars[ctx.last_closed].close,
+                    "stop_price": ctx.bars[ctx.last_closed].low,
+                },
+            )
+        ]
+
+    registry = SetupRegistry([adapt("PULLBACK_H", broken), adapt("BREAKOUT", works)])
+    result = Analyzer(CFG, registry=registry).analyze(_bars())
+
+    assert "DETECTOR_FAILED:PULLBACK_H" in result.warnings
+    assert result.detectors["failed"][0]["detector"] == "PULLBACK_H"
+    # The working detector still reported, so one broken detector did not take the
+    # run down with it.
+    assert [s["detector"] for s in result.setups] == ["BREAKOUT"]
+
+
+def test_an_analyzer_accepts_a_caller_supplied_registry() -> None:
+    """`ARCHITECTURE.md` §9, in its final form: a detector can be added without
+    editing the analyzer, and a caller who wants extra ones passes them in."""
+    from albrooks.setups.base import SetupFinding
+    from albrooks.setups.registry import SetupRegistry
+
+    class Custom:
+        name = "MY_DETECTOR"
+
+        def detect(self, ctx):  # noqa: ANN001, ANN202 - the registry protocol
+            close = ctx.bars[ctx.last_closed].close
+            return [
+                SetupFinding(
+                    detector="MY_DETECTOR",
+                    kind="DEFAULT",
+                    direction=1,
+                    found=True,
+                    payload={
+                        "found": True,
+                        "direction": 1,
+                        "setup_type": "H2",
+                        "state": "CONFIRMED",
+                        "reference_price": close,
+                        "stop_price": ctx.bars[ctx.last_closed].low,
+                    },
+                )
+            ]
+
+    result = Analyzer(CFG, registry=SetupRegistry([Custom()])).analyze(_bars())
+
+    assert [s["detector"] for s in result.setups] == ["MY_DETECTOR"]
+    assert result.detectors["executed"] == ["MY_DETECTOR"]
 
 
 def test_result_serializes_to_json() -> None:

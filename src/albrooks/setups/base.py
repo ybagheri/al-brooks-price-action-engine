@@ -253,6 +253,40 @@ def adapt(
 
 
 
+#: Registry detector name -> the setup **family** it belongs to.
+#:
+#: The registry's own `kind` is a detector-level label, and two of the shipped
+#: detectors are registered with the default `kind`, so `kind` alone cannot answer
+#: "which family is this?". One table answers it for every consumer — the trade
+#: layer's anatomy lookup, the pipeline's per-family grouping, and the decision
+#: layer's evidence adapters — because a second copy of this mapping is a second
+#: place for the eleven detector names to drift out of step.
+FAMILY_BY_DETECTOR: dict[str, str] = {
+    "PULLBACK_H": "PULLBACK",
+    "PULLBACK_L": "PULLBACK",
+    "BREAKOUT": "BREAKOUT",
+    "REVERSAL_BULL": "REVERSAL",
+    "REVERSAL_BEAR": "REVERSAL",
+    "DOUBLE_TOP_MAJOR": "DOUBLE_TOP",
+    "DOUBLE_BOTTOM_MAJOR": "DOUBLE_BOTTOM",
+    "DOUBLE_TOP_MICRO": "DOUBLE_TOP",
+    "DOUBLE_BOTTOM_MICRO": "DOUBLE_BOTTOM",
+    "MEASURED_MOVE": "MEASURED_MOVE",
+    "FADING_MEASURED_MOVE": "FADING_MEASURED_MOVE",
+}
+
+
+def family_for(detector: str, kind: str = "") -> str:
+    """The family a finding belongs to.
+
+    Falls back to the finding's own `kind`, which is the right answer for a
+    third-party detector that named its family there — and `UNKNOWN` rather than a
+    guess when it named neither, so a caller can see the gap instead of receiving
+    a family invented from a detector name.
+    """
+    return FAMILY_BY_DETECTOR.get(detector) or kind or "UNKNOWN"
+
+
 @runtime_checkable
 class SetupDetector(Protocol):
     """What the registry requires of a detector.

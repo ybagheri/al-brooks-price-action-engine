@@ -62,9 +62,9 @@ factors behind this reading were, on average, at 0.8 of their own scale" — not
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Any, Iterator
+from typing import Any, Iterator, Mapping
 
 
 class EvidenceBasis(str, Enum):
@@ -201,6 +201,25 @@ class EvidenceBundle:
 # --------------------------------------------------------------------------
 
 
+def _field(source: Any, name: str, default: Any = None) -> Any:
+    """Read `name` from a domain model **or** from its `to_dict()` payload.
+
+    Phase 15 needed this and found the gap: two of the five adapters could only
+    read objects. Every detector's public path is `to_dict()` — the setup registry
+    hands findings around as plain dicts, and `Analyzer.analyze()` reports them as
+    dicts — so an adapter that only understood objects would have had no way to
+    reach the measured-move and reversal evidence the decision layer needs.
+
+    The object is preferred, so nothing changes for a caller passing a real model.
+    """
+    value = getattr(source, name, None)
+    if value is not None:
+        return value
+    if isinstance(source, Mapping):
+        return source.get(name, default)
+    return default
+
+
 def from_measured_move(projection: Any) -> list[EvidenceFactor]:
     """Normalise a `MeasuredMoveProjection`'s own evidence.
 
@@ -209,17 +228,21 @@ def from_measured_move(projection: Any) -> list[EvidenceFactor]:
     is deliberately **not** re-used: it is the mean of these same weights, and
     recomputing it from the factors is what keeps the scalar reproducible from
     its own evidence rather than able to drift away from it.
+
+    Accepts the projection or its `to_dict()` payload; see `_field`.
     """
     out: list[EvidenceFactor] = []
-    for item in getattr(projection, "evidence", ()) or ():
+    family = str(_field(projection, "family", "") or "")
+    for item in _field(projection, "evidence", ()) or ():
+        weight = _field(item, "weight", 0.0)
         out.append(
             EvidenceFactor(
                 source="MEASURED_MOVE",
-                code=item.code,
-                weight=item.weight,
+                code=str(_field(item, "code", "")),
+                weight=float(weight) if isinstance(weight, (int, float)) else 0.0,
                 basis=EvidenceBasis.MEASURED,
-                family=str(getattr(projection, "family", "")),
-                detail=item.detail,
+                family=family,
+                detail=str(_field(item, "detail", "") or ""),
             )
         )
     return out
@@ -252,9 +275,11 @@ def from_market_state(state: Any) -> list[EvidenceFactor]:
     The difference is worth keeping: a slope of 1.00 and the presence of
     compression are not the same kind of claim, and flattening both to a
     midpoint would discard the distinction the market-state engine drew.
+
+    Accepts the state or its `to_dict()` payload; see `_field`.
     """
     out: list[EvidenceFactor] = []
-    for line in getattr(state, "evidence", ()) or ():
+    for line in _field(state, "evidence", ()) or ():
         code, _, detail = str(line).partition(":")
         detail = detail.strip()
         weight, basis = _parse_numeric_detail(detail)
@@ -280,10 +305,16 @@ def from_reversal(quality: Any) -> list[EvidenceFactor]:
 
     `verdict` is carried as a factor too, because "MAJOR" is a real observation
     about the bundle even though it is a conclusion drawn from the legs.
+
+    Accepts the quality or its `to_dict()` payload; see `_field`.
     """
     out: list[EvidenceFactor] = []
-    direction = int(getattr(quality, "direction", 0) or 0)
-    for code in getattr(quality, "satisfied", ()) or ():
+    raw_direction = _field(quality, "direction", 0)
+    try:
+        direction = int(raw_direction or 0)
+    except (TypeError, ValueError):
+        direction = 0
+    for code in _field(quality, "satisfied", ()) or ():
         out.append(
             EvidenceFactor(
                 source="REVERSAL",
@@ -293,7 +324,7 @@ def from_reversal(quality: Any) -> list[EvidenceFactor]:
                 detail="leg satisfied",
             )
         )
-    verdict = str(getattr(quality, "verdict", "NONE"))
+    verdict = str(_field(quality, "verdict", "NONE") or "NONE")
     if verdict != "NONE":
         out.append(
             EvidenceFactor(
@@ -394,6 +425,69 @@ def from_breakout(payload: dict[str, Any]) -> list[EvidenceFactor]:
     return out
 
 
+#: Fading-measured-move lifecycle positions, ordered weakest-first.
+#:
+#: Evenly spaced for stability, like the pullback adapter's values, and the gaps
+#: are **not** meaningful: a `POTENTIAL` fade is not "twice as potential" as a
+#: `PROJECTED` one. What matters is the ordering, and that the positions are
+#: discrete rather than points on a continuum.
+#:
+#: `COMPLETED` and `INVALIDATED` are excluded for the same reason `FAILED` breakouts
+#: and `INVALIDATED` pullbacks are: a terminal negative is not a weak observation,
+#: it is a dead one, and folding it in as a small weight would collapse "scored
+#: badly" into "not a candidate".
+_FM_LIFECYCLE: dict[str, float] = {
+    "PROJECTED": 0.2,
+    "POTENTIAL": 0.4,
+    "DEVELOPING": 0.7,
+    "CONFIRMED": 1.0,
+}
+
+
+def from_fading_measured_move(payload: Mapping[str, Any] | Any) -> list[EvidenceFactor]:
+    """Normalise a fade: its projection's evidence, plus its own lifecycle.
+
+    Two sources in one adapter, and both are needed.
+
+    A `FadingSetup` is a lifecycle over someone else's target — it carries no
+    factors of its own — so its projection's evidence is the only measurement
+    behind it. Without that, a fade's bundle held nothing but the shared
+    market-state factors, and because `score()` averages within each source a
+    single-source bundle scores that source's value outright: a fade was
+    scoring 100 ppts on market context alone.
+
+    The lifecycle factor is what makes a fade distinguishable from the measured
+    move it fades. It is genuinely different evidence: `POTENTIAL` means price has
+    only *approached* the target (`FadingSetup.touched` is False), while
+    `CONFIRMED` means the touch, the signal bar and the follow-through were all
+    observed. Without it, a trend-continuation trade and a fade of the same
+    projection scored **identically** and the decision layer reported
+    `EVIDENCE_CONFLICT` with a gap of zero on every strong measured move.
+
+    Accepts the setup or its `to_dict()` payload; see `_field`.
+    """
+    projection = _field(payload, "projection")
+    factors = (
+        [replace(f, source="FADING_MEASURED_MOVE") for f in from_measured_move(projection)]
+        if projection is not None
+        else []
+    )
+    state = str(_field(payload, "state", "") or "")
+    weight = _FM_LIFECYCLE.get(state)
+    if weight is not None:
+        factors.append(
+            EvidenceFactor(
+                source="FADING_MEASURED_MOVE",
+                code=state,
+                weight=weight,
+                basis=EvidenceBasis.LIFECYCLE,
+                family=str(_field(payload, "family", "") or ""),
+                detail="fade lifecycle position",
+            )
+        )
+    return factors
+
+
 #: Every source this module knows how to normalise.
 KNOWN_SOURCES: tuple[str, ...] = (
     "MARKET_STATE",
@@ -401,4 +495,5 @@ KNOWN_SOURCES: tuple[str, ...] = (
     "REVERSAL",
     "PULLBACK",
     "BREAKOUT",
+    "FADING_MEASURED_MOVE",
 )

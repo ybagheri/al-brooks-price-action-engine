@@ -37,6 +37,7 @@ from albrooks.evaluation.evidence import (
     EvidenceFactor,
     clamp01,
     from_breakout,
+    from_fading_measured_move,
     from_market_state,
     from_measured_move,
     from_pullback,
@@ -56,6 +57,7 @@ from albrooks.evaluation.scoring import (
     measured_only,
     score,
 )
+from albrooks.setups.reversal import ReversalQuality
 
 CFG = AnalyzerConfig(range_lookback=20)
 
@@ -185,6 +187,123 @@ def test_a_bundle_serialises() -> None:
     payload = json.loads(json.dumps(bundle(measured("A", 1.0), subject="X").to_dict()))
     assert payload["subject"] == "X"
     assert payload["factors"][0]["code"] == "A"
+
+
+# --------------------------------------------------------------------------
+# Adapters read a payload as readily as a model
+# --------------------------------------------------------------------------
+
+
+def test_the_measured_move_adapter_reads_a_payload_as_well_as_a_model() -> None:
+    """Added in Phase 15, which found the gap.
+
+    Every detector's public path is `to_dict()`: the setup registry hands findings
+    around as plain dicts and `Analyzer.analyze()` reports them as dicts, so an
+    adapter that only understood objects could not reach the measured-move evidence
+    at all. The object is still preferred, so nothing changes for a caller passing
+    a real `MeasuredMoveProjection`.
+    """
+    payload = {
+        "found": True,
+        "family": "RANGE",
+        "direction": 1,
+        "evidence": [
+            {"code": "MM_SCALE", "weight": 0.8, "detail": "3.1 ATR"},
+            {"code": "MM_BREAKOUT_MARGIN", "weight": 0.4, "detail": ""},
+        ],
+    }
+
+    factors = from_measured_move(payload)
+
+    assert [f.code for f in factors] == ["MM_SCALE", "MM_BREAKOUT_MARGIN"]
+    assert factors[0].weight == pytest.approx(0.8)
+    assert factors[0].family == "RANGE"
+    assert all(f.basis is EvidenceBasis.MEASURED for f in factors)
+
+
+def test_the_reversal_adapter_reads_a_payload_as_well_as_a_model() -> None:
+    payload = {
+        "verdict": "MAJOR",
+        "direction": -1,
+        "score": 100,
+        "satisfied": ["EMA_BREAK", "RETEST"],
+        "missing": ["BO_FOLLOW"],
+    }
+
+    factors = from_reversal(payload)
+
+    assert [f.code for f in factors] == ["EMA_BREAK", "RETEST", "VERDICT_MAJOR"]
+    assert all(f.weight == 1.0 for f in factors)
+    assert "-1" in factors[-1].detail
+
+
+def test_a_payload_and_its_model_normalise_identically() -> None:
+    """The point of reading both is that they are not two vocabularies."""
+    payload = {
+        "verdict": "MINOR",
+        "direction": 1,
+        "satisfied": ["EMA_BREAK"],
+        "missing": [],
+    }
+    model = ReversalQuality(
+        verdict="MINOR", direction=1, satisfied=["EMA_BREAK"], missing=[]
+    )
+
+    assert from_reversal(payload) == from_reversal(model)
+
+
+def test_a_fade_normalises_as_its_projection_evidence_plus_its_lifecycle() -> None:
+    """Added in Phase 16, which found two real problems at once.
+
+    A `FadingSetup` carries no factors of its own, so without unwrapping
+    `projection` its bundle held nothing but the shared market-state factors — and
+    because `score()` averages within each source, a single-source bundle scores
+    that source's value outright. A fade was scoring 100 ppts on market context
+    alone. The lifecycle factor is what also makes a fade distinguishable from the
+    measured move it fades; without it the two scored identically and the decision
+    layer reported a zero-width `EVIDENCE_CONFLICT` on every strong projection.
+    """
+    payload = {
+        "family": "RANGE",
+        "fade_direction": -1,
+        "state": "POTENTIAL",
+        "projection": {
+            "family": "RANGE",
+            "direction": 1,
+            "evidence": [{"code": "MM_SCALE", "weight": 0.8, "detail": "3.1 ATR"}],
+        },
+    }
+
+    factors = from_fading_measured_move(payload)
+
+    assert [f.code for f in factors] == ["MM_SCALE", "POTENTIAL"]
+    assert {f.source for f in factors} == {"FADING_MEASURED_MOVE"}
+    assert factors[1].basis is EvidenceBasis.LIFECYCLE
+    assert factors[1].weight == pytest.approx(0.4)
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [("PROJECTED", 0.2), ("POTENTIAL", 0.4), ("DEVELOPING", 0.7), ("CONFIRMED", 1.0)],
+)
+def test_a_fade_lifecycle_orders_weakest_first(state: str, expected: float) -> None:
+    factors = from_fading_measured_move({"state": state, "projection": None})
+
+    assert [f.weight for f in factors] == [pytest.approx(expected)]
+
+
+@pytest.mark.parametrize("state", ["COMPLETED", "INVALIDATED"])
+def test_a_terminal_fade_is_excluded_rather_than_scored(state: str) -> None:
+    """A terminal negative is not a weak observation, it is a dead one."""
+    assert from_fading_measured_move({"state": state, "projection": None}) == []
+
+
+def test_a_fade_without_a_projection_still_reports_its_lifecycle() -> None:
+    """The lifecycle is the fade's own evidence and does not depend on the target
+    being present."""
+    factors = from_fading_measured_move({"state": "DEVELOPING", "projection": None})
+
+    assert [f.code for f in factors] == ["DEVELOPING"]
 
 
 # --------------------------------------------------------------------------

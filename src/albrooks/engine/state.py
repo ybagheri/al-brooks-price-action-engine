@@ -48,6 +48,19 @@ class AnalysisResult:
     breakouts: list[dict[str, Any]] = field(default_factory=list)
     reversals: list[dict[str, Any]] = field(default_factory=list)
     evidence: list[dict[str, Any]] = field(default_factory=list)
+    #: Every setup detector finding for this run, in the registry's registration
+    #: order — which is deterministic and is **not** a ranking. `setups` is the
+    #: same list with a `detector` label attached, so a caller that wants the
+    #: normalised shape has one and a caller that wants the raw finding has the
+    #: other. Doubles and fading measured moves appear here from Phase 16, which is
+    #: when the pipeline started reading the registry rather than calling four
+    #: detectors directly.
+    findings: list[dict[str, Any]] = field(default_factory=list)
+    #: What the registry did: `executed` names, `skipped` reasons, `failed`
+    #: entries. This is what distinguishes "a detector ran and found nothing" from
+    #: "a detector could not be measured" from "a detector raised", none of which
+    #: the finding list can express.
+    detectors: dict[str, Any] = field(default_factory=dict)
     #: Which pipeline layers actually ran, so a caller can tell an empty layer
     #: ("nothing found") from an absent one ("not implemented"). Set by the
     #: pipeline, never inferred from the emptiness of the other fields.
