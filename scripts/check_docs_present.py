@@ -42,11 +42,9 @@ PENDING_ROOT: tuple[tuple[str, int], ...] = ()
 # Algorithm documents. Each is (path, phase_that_owes_it).
 REQUIRED_DOCS: tuple[tuple[str, int], ...] = (
     ("docs/FM_INDICATOR_AUDIT.md", 0),
+    ("docs/architecture/ARCHITECTURE.md", 1),
+    ("docs/architecture/CONCEPT_TAXONOMY.md", 2),
     ("docs/algorithms/BAR_BY_BAR.md", 2),
-    ("docs/algorithms/MEASURED_MOVES.md", 10),
-)
-
-PENDING_DOCS: tuple[tuple[str, int], ...] = (
     ("docs/algorithms/SWINGS_AND_LEGS.md", 3),
     ("docs/algorithms/MARKET_CONTEXT.md", 4),
     ("docs/algorithms/STRUCTURES.md", 5),
@@ -54,6 +52,7 @@ PENDING_DOCS: tuple[tuple[str, int], ...] = (
     ("docs/algorithms/DOUBLE_PATTERNS.md", 7),
     ("docs/algorithms/BREAKOUTS.md", 8),
     ("docs/algorithms/REVERSALS.md", 9),
+    ("docs/algorithms/MEASURED_MOVES.md", 10),
     ("docs/algorithms/FADING_MEASURED_MOVE.md", 11),
     ("docs/algorithms/SETUP_ENGINE.md", 12),
     ("docs/algorithms/EVIDENCE_MODEL.md", 13),
@@ -63,11 +62,24 @@ PENDING_DOCS: tuple[tuple[str, int], ...] = (
     ("docs/algorithms/NON_REPAINT_CONTRACT.md", 17),
     ("docs/algorithms/BACKTESTING.md", 18),
     ("docs/algorithms/VALIDATION.md", 19),
-    ("docs/algorithms/PYTHON_MQL5_PARITY.md", 20),
-    ("docs/algorithms/AI_INTERFACE.md", 22),
-    ("docs/architecture/ARCHITECTURE.md", 1),
-    ("docs/architecture/CONCEPT_TAXONOMY.md", 2),
 )
+
+# Only documents owed by a phase that has NOT been completed yet.
+#
+# Moving an entry from here into `REQUIRED_DOCS` is the act that says "this phase
+# owes a document". Leaving a completed phase's document down here is not neutral
+# bookkeeping: `--phase 13` would then fail the build over twelve files that are
+# already on disk, which is a CI failure that means nothing and so trains people
+# to ignore the one that does.
+#
+# Every phase through 19 is complete, so everything still listed here is genuinely
+# absent. Phase 23 is documentation-only and owes no new path: it expands the
+# documents already required above.
+PENDING_DOCS: tuple[tuple[str, int], ...] = (
+    ("docs/PYTHON_MQL5_PARITY.md", 20),
+    ("docs/algorithms/AI_INTERFACE.md", 22),
+)
+
 
 
 def _missing(paths: tuple[str, ...]) -> list[str]:

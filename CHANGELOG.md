@@ -64,7 +64,9 @@ been statistically validated, and no performance claim is made.
   shallow-pullback bound is the named constant `CHANNEL_MIN_DEPTH` rather than a
   literal repeated in the gate and the evidence band.
 - The pullback and reversal layers report **both** directions rather than one
-  winner. Ranking them is a decision, and the decision layer does not exist yet.
+  winner, because ranking them is a decision. *The decision layer did not exist
+  when this was written; it landed in Phase 15, and `decision.decide()` is now
+  the single place the comparison happens.*
 
 ### Fixed
 - A "distance to target" evidence factor was removed during review. In all five
@@ -180,23 +182,30 @@ been statistically validated, and no performance claim is made.
   *on purpose* — existed only as scattered asides in individual spec files, which
   is a poor fit for a project whose premise is honest self-reporting. Each entry
   now states the thing, the reason, and what would have to change.
-- Recorded there, every claim verified against the source rather than assumed:
+- Recorded there, every claim verified against the source rather than assumed. Four
+  of them have since been **closed** and are annotated below; the rest still stand.
   - The setup registry and `evaluation.compare()` do not rank competing setups.
-  - No score in this project is a probability.
+    **Still true**, and `decision.decide()` is now the single place a ranking happens.
+  - No score in this project is a probability. **Still true.**
   - The pipeline never infers a trade (`NO_TRADE` /
-    `DECISION_ENGINE_NOT_IMPLEMENTED`).
+    `DECISION_ENGINE_NOT_IMPLEMENTED`). **Closed** (Phase 15) — the pipeline
+    answers `BUY` / `SELL` / `WAIT` / `NO_TRADE`, and `NO_TRADE` is now reachable
+    only via `enable_decision=False` / `DECISION_DISABLED` or a degenerate input.
   - The six `AnalyzerConfig` keys consumed by nothing — `enable_decision`,
     `min_score`, `min_rr`, `max_late_atr`, `conflict_ppts`,
-    `max_failed_attempts`. Each was confirmed to have zero references outside
-    `configuration.py` in both `src/` and `tests/`. A user tuning `min_rr` today
-    gets no effect and previously had no way to learn why.
+    `max_failed_attempts`. **Closed** (Phase 15) — all six are read, and each is
+    asserted to change a decision outcome.
   - `engine.state.NOT_IMPLEMENTED` is defined and never used; the job it
     describes is actually done by the `layers` map and `unimplemented_layers`.
+    **Still unused**, and the ROADMAP records what would change it.
   - `examples/` is empty and untracked, so it does not survive a fresh clone.
-    Phase 22 owns `examples/llm_analysis.py`, and the 0.1.0 known-gap entry for
-    missing examples is still open.
+    **Corrected**: there is no `examples/` directory at all, so nothing of ours is
+    untracked. Phase 22 owns `examples/llm_analysis.py`, and the 0.1.0 known-gap
+    entry for missing examples is still open.
   - `decision/`, `trade/`, `adapters/` and `serialization/` hold only empty
-    `__init__.py` placeholders — not partial implementations.
+    `__init__.py` placeholders. **Partly closed** — `decision/` and `trade/` are
+    populated and on the live pipeline path (Phases 14-15). `adapters/` and
+    `serialization/` remain empty placeholders for Phases 21 and 22.
 - `README.md` gained a *What is deliberately not built* summary, and its
   Configuration section now warns that not every key is wired yet. Both link to
   the ROADMAP section.
@@ -214,14 +223,13 @@ been statistically validated, and no performance claim is made.
   trailing number in its detail string. That works for the current three codes
   and would need revisiting if the engine began emitting mid-sentence numbers,
   which is why the parser reads only the last token.
-- The evidence model is not yet consumed by `Analyzer.analyze()`; the
-  pipeline's existing `evidence` list is unchanged, because rewiring it would
-  have altered output that `tests/unit/test_engine_pipeline.py` pins. Wiring the
-  two together is Phase 16's pipeline work.
-- `AnalyzerConfig.min_score` is still consumed by nothing. Phase 13 supplies the
-  evidence score it was evidently waiting for, but gating on it is the decision
-  engine's job (Phase 15), so it is deliberately left unwired rather than used
-  as a threshold here.
+- The evidence model **is** consumed by `Analyzer.analyze()`. *Closed (Phase 16).*
+  The limitation recorded here was that rewiring it would have altered output that
+  `tests/unit/test_engine_pipeline.py` pinned; it is wired, and the pipeline's
+  `evidence` list is now the evidence model's own.
+- `AnalyzerConfig.min_score` gates the `EVIDENCE_TOO_WEAK` veto. *Closed
+  (Phase 15).* It is no longer decorative, and a test asserts that moving it
+  changes which candidates survive.
 - The FM exhaustion gate binds more loosely than the specification's wording
   suggests. A bar touching a measured-move target is by construction the extreme
   of the recent range, so the `overshoot` exhaustion condition is almost always
@@ -229,13 +237,426 @@ been statistically validated, and no performance claim is made.
   happens there. The gate is kept as specified; the interaction is documented in
   `docs/algorithms/FADING_MEASURED_MOVE.md` §5.2 and pinned by a test, because
   removing the gate would otherwise not fail any test.
-- `Analyzer.analyze()` still calls its detectors directly rather than reading the
-  registry. Phase 12's claim is that a detector can be *added* without editing
-  the analyzer, and `build_default_registry()` satisfies that; making the
-  pipeline consume the registry is Phase 16's work.
+- `Analyzer.analyze()` reads the setup registry. *Closed (Phase 16).* Recorded
+  here previously as outstanding work; it is done, and a detector can now be added
+  without editing the analyzer.
 - `DEFAULT_REGISTRY` is a process-wide mutable global. `build_default_registry()`
   is preferred in library code and tests, because a shared mutable global makes
   test order matter. A test pins that the two are independent.
+
+### Added
+- **Phase 14** — `src/albrooks/trade/plan.py`: a platform-independent
+  `TradePlan` — entry, stop, target, reward:risk, an invalidation sentence and
+  management notes — and one builder that derives them from a setup payload.
+- **Every level carries a basis.** This is the phase's load-bearing idea, and it
+  is Phase 13's `EvidenceFactor.basis` applied to prices. A stop at `101.20` means
+  something different depending on whether it came from a pullback's low, a
+  broken reference, a pattern's extreme, a confirmed swing, or an ATR multiple,
+  so `entry_basis` / `stop_basis` / `target_basis` say which. A level invented
+  from volatility is recorded as `ATR_FALLBACK`, raises
+  `VOLATILITY_FALLBACK_STOP` / `VOLATILITY_FALLBACK_TARGET`, and leaves
+  `has_structural_stop` False — a reader can never mistake a 1-ATR default for a
+  swing low the market made.
+- `issues` holds only statements that are false about the arithmetic
+  (`STOP_NOT_PROTECTIVE`, `TARGET_NOT_AHEAD`, `RISK_NOT_POSITIVE`, `NO_ATR`,
+  `NO_DIRECTION`, `*_UNDEFINED`). `warnings` holds everything noticed and
+  deliberately not acted on, because **gating on merit is the decision engine's
+  job**: `plan_max_stop_atr` produces a `STOP_WIDE` warning on a plan that is
+  still returned and still `is_valid`.
+- A setup in a terminal negative state (a `FAILED` breakout, an `INVALIDATED`
+  lifecycle) raises `TERMINAL_SETUP_STATE` and is still planned. Its geometry is
+  coherent arithmetic, and hiding it would remove the reader's chance to ask
+  whether it deserves a plan.
+- `SetupAnatomy` is a row of **data** saying where a family's geometry lives in
+  its payload, and `build_trade_plan()` is the single algorithm that reads it.
+  The five families record prices in incompatible places — a pullback carries
+  `stop_price`, a measured move nests its origin under `origin.price`, a fading
+  setup's trade direction is `fade_direction` rather than `direction`, and a
+  reversal carries no prices at all — so five builders would have duplicated the
+  derivation five times, against `CONTRIBUTING.md` rule 5. Adding a family is a
+  table row, holding `ARCHITECTURE.md` §9's one-change rule at this layer too.
+- A fade reads `fade_direction` **before** `direction`, because
+  `FadingSetup.direction` is the *projection's*. Reading it as the trade
+  direction produces a plan in the direction of the move being faded, which is
+  the easiest way to be wrong in this engine.
+- A double top/bottom's stop is the **adverse extreme** of `price1` and `price2`
+  (the minimum for a long, the maximum for a short) rather than the first of
+  them, which on a bar-order change would put the stop inside the pattern.
+- `AnalyzerConfig` gained the `plan_*` block: `plan_stop_buffer_atr`,
+  `plan_fallback_stop_atr`, `plan_fallback_target_atr` and `plan_max_stop_atr`.
+  ARCHITECTURE.md §11 requires every threshold to be configurable rather than a
+  literal inside a detector, and these had nowhere else to live.
+- `docs/algorithms/TRADE_PLAN.md` — the trade-plan specification, including what
+  a plan is **not** and the exact boundary values of every gate.
+- `tests/unit/test_phase14_trade_plan.py` — 56 tests. Every threshold is pinned
+  at its **exact** value and on both sides of it, the no-lookahead invariant is
+  re-asserted through the swing path (a swing confirmed *after* the plan's bar
+  must not set its stop), and `test_the_no_lookahead_fixture_is_not_vacuous`
+  guards the comparison from becoming empty.
+
+### Fixed
+- A setup payload with **no `direction` field at all** produced a *short* plan.
+  The direction reader went through a helper whose "missing" sentinel is `-1`,
+  and `-1` is a direction. A missing or non-numeric direction is now `0`, which
+  reports `NO_DIRECTION` and derives no levels at all. Found by the Phase 14
+  test suite; it would have shipped a plausible-looking number for every setup
+  that does not record a direction.
+- The volatility **fallback stop** was computed as `entry - stop_buffer`, making
+  it `plan_stop_buffer_atr` (0.25 ATR) wide instead of
+  `plan_fallback_stop_atr` (1.0 ATR) wide. The fallback is a distance, not a
+  buffer, and the two were being conflated.
+
+### Added
+- **Phase 15** — `src/albrooks/decision/engine.py` and `veto.py`: a transparent
+  decision pipeline returning `BUY` / `SELL` / `WAIT` / `NO_TRADE` with a stable
+  reason code, the full explanation, every gate that fired, and the criteria that
+  chose the candidate.
+- This is the one layer allowed to compare competing setups, which
+  `ROADMAP.md` has said all along is where the comparison belongs. It sorts
+  eligible candidates by `(-evidence_value, -reward_to_risk, candidate_id)` and
+  **echoes that list in `ranking_basis` on every decision**, so a run over the same
+  findings always agrees with itself and a reader never has to open a file to know
+  why one plan won. `BUY` means "of the plans that passed every gate, this one had
+  the most evidence by those criteria" — there is no `confidence` field anywhere
+  in this project and `Decision.to_dict()` carries `is_probability: false`.
+- `NO_TRADE` and `WAIT` are kept distinct. `NO_TRADE` means the engine declines to
+  answer (disabled, no volatility reference, or nothing found) and each has its own
+  reason code; `WAIT` means a candidate existed and a stated condition was not met.
+  Collapsing them would make an empty result read as a judgement.
+- **Nine gates, eight blocking and one advisory.** `NO_DIRECTION`,
+  `INVALID_GEOMETRY`, `TERMINAL_SETUP`, `NO_ATR`, `EVIDENCE_TOO_WEAK` (`min_score`),
+  `RISK_REWARD_TOO_LOW` (`min_rr`), `TRADE_IS_LATE` (`max_late_atr`),
+  `TOO_MANY_FAILED_ATTEMPTS` (`max_failed_attempts`), and the non-blocking
+  `VOLATILITY_STOP_ONLY`.
+- **No gate short-circuits.** A candidate failing four reports four, because a
+  reader fixing one condition should not have to re-run to discover the next. And
+  every `Veto.detail` names both numbers it compared — a veto that only said
+  `EVIDENCE_TOO_WEAK` would be unfalsifiable. An `ALL_CANDIDATES_VETOED` decision
+  keeps the per-candidate veto list, not just a count, and its explanation names the
+  four config keys to turn.
+- `veto.py` exists as a separate module so that a veto — a statement about a
+  *single* candidate — cannot mention another candidate, and a veto list can never
+  become a hidden ranking.
+- `TradeCandidate` carries a plan, the bundle of evidence behind it, and the score
+  derived from that bundle **together**, with the score computed once at
+  construction so the number a gate reads and the number the decision reports
+  cannot be two different calculations of the same bundle.
+- `bundle_for()` maps a family to its Phase 13 adapter and adds market-state
+  evidence to **every** bundle: context is part of what backs a candidate, and a
+  bundle that omitted it would score a pullback in a strong trend identically to
+  one in a tight range.
+- `docs/algorithms/DECISION_ENGINE.md` — the specification, including the gates,
+  the ranking criteria, and §5's account of what `max_failed_attempts` actually
+  counts.
+- `tests/unit/test_phase15_decision.py`, plus tests added to
+  `test_phase13_evidence.py`. Every threshold is pinned at its **exact** value and
+  on both sides of it, the reward:risk tie-break is isolated from the name
+  tie-break by giving the better candidate the later id, and the closed-bar
+  invariant is re-asserted through the lateness gate — the gate most likely to
+  break it.
+
+### Changed
+- **`Analyzer.analyze()` now reports a decision and the plans behind it.** The
+  setups a run found are planned by `albrooks.trade.plan`, and gated and ranked by
+  `albrooks.decision.decide()`. `layers["trade_plans"]` and `layers["decision"]`
+  are `True`, so `unimplemented_layers` is **empty** for a normal analysis — which
+  is what that field has always existed to say. On degenerate input it is still
+  every layer.
+- `tests/unit/test_engine_pipeline.py` updated to the new truth. The assertions that
+  pinned `layers["trade_plans"] is False` and
+  `unimplemented_layers == {"trade_plans", "decision"}` were correct when written
+  and are wrong now; leaving them would have made the field lie. Two new tests
+  cover the trade-plan and decision output, and one covers
+  `enable_decision=False` withholding the decision while leaving the plans alone.
+- The six `AnalyzerConfig` keys declared in Phase 1 are finally read, and each one
+  is now asserted by a test to change an outcome — which is the only way they
+  cannot silently become decorative again. The README and `ROADMAP.md` sections
+  that warned they had no effect have been replaced with what they now do.
+- The plan layer plans only the setups the pipeline already found, so wiring it in
+  cannot introduce a new lookahead surface.
+- `NOTE_PLAN_IS_NOT_A_RECOMMENDATION` in `trade/plan.py` no longer says the
+  question belongs to "Phase 15" — it belongs to the decision layer, which now
+  exists.
+
+### Fixed
+- **`AnalyzerConfig.min_score` was declared as `40.0` on a scale that does not
+  exist.** The Phase 13 evidence score is 0..1, so the moment the key was read it
+  rejected **every** candidate, including a perfect one, and the decision layer
+  would have answered `WAIT` / `ALL_CANDIDATES_VETOED` on every input forever. The
+  default is now `0.40`, aligned with `evidence_moderate_band`. The key was
+  documented as unwired for three phases precisely so nobody was misled by it
+  meanwhile, but the ROADMAP's table carried the wrong number until this phase.
+- `from_measured_move()` and `from_reversal()` could only read domain models, not
+  their `to_dict()` payloads. Every detector's public path is `to_dict()`: the
+  registry passes findings around as plain dicts and `analyze()` reports them as
+  dicts, so the decision layer could not reach the measured-move and reversal
+  evidence at all. Both now read either, preferring the object, and a test asserts
+  a payload and its model normalise identically.
+
+### Added
+- **Phase 16** — `src/albrooks/engine/pipeline.py`: `analyze_multi_timeframe()`
+  aligns two series in time, derives a higher-timeframe bias, and withholds a
+  lower-timeframe decision that runs against it. `docs/algorithms/MULTI_TIMEFRAME.md`.
+- **Alignment works in close times.** `Bar.time` is the bar's *open* time, so a
+  high bar is usable at low bar `i` only once it has closed:
+  `htf.time + htf_step <= ltf.time[i] + ltf_step`, i.e.
+  `k = floor((i + 1) / ratio) - 1`. That is deliberately **not** `i // ratio` — a
+  low bar closing at the same instant as a high bar's close is *inside* that high
+  bar. A test makes the forming high bar extreme and asserts the bias does not
+  move, which is the specific mistake a naive `htf.time < ltf.time` would make.
+- The bar step is the **mode** of the timestamp gaps, not the mean, so a single
+  session break cannot become the bar period. Nothing parses a timeframe string:
+  `ratio` is the caller's, cross-checked against the timestamps and reported as
+  `TIMEFRAME_RATIO_MISMATCH` if it disagrees — a mis-parsed timeframe is a silent
+  misalignment, which is the worst kind.
+- Five alignment diagnostics, and the two that stop the alignment
+  (`MISSING_TIMESTAMPS`, `NON_MONOTONIC_TIME`) are reported rather than papered
+  over. A series of bars carrying no `time` is all `0.0` defaults, and guessing a
+  step for it would produce a bias that reads as a neutral market.
+- The bias is a **veto input, not a signal**. `AGAINST_HIGHER_TIMEFRAME`
+  *withholds* a decision and never inverts one: knowing an M15 long disagrees with
+  an H1 bear is not knowing the long is a short. A directional read needs the
+  higher proxy share to reach `htf_min_strength` (default `0.60`, against a clean
+  trend's `0.67`), so a range or a chop cannot manufacture a conflict —
+  `htf_opposition_veto=False` reports the bias without gating on it.
+- `HTFBias.reason` keeps four "no bias" cases apart — `HTF_ALIGNED`,
+  `HTF_NOT_CLASSIFIED`, `HTF_NOT_ALIGNED`, `HTF_NOT_ALIGNED_IN_TIME` — so a
+  timestamps problem can never read as a neutral market.
+- `AnalysisResult` gained `findings` (every setup detector finding, in
+  registration order) and `detectors` (`executed` / `skipped` / `failed`).
+- `AnalyzerConfig` gained `htf_min_strength`, `htf_opposition_veto` and
+  `htf_report_unclassified`.
+- `docs/algorithms/MULTI_TIMEFRAME.md`, promoted to a required document in CI, and
+  `tests/unit/test_phase16_multi_timeframe.py` — 38 tests including the closed-bar
+  alignment, both sides of   `htf_min_strength`, and the invariant re-asserted
+  across **two** series.
+- **Phase 18** — `src/albrooks/backtest/events.py`: `replay()` walks a series one
+  closed bar at a time and records what the path after each decision did — which
+  level came first, how many bars it took, and the maximum favourable and adverse
+  excursion in price units and in ATR multiples. `docs/algorithms/BACKTESTING.md`.
+- **Two outcomes are things that happened, so they are not tidied away.**
+  `AMBIGUOUS` is a bar whose high passed the target while its low passed the stop,
+  which OHLC cannot order; `INVALID_ENTRY` is a fill that arrived already through
+  the stop, so the trade never existed. Both are recorded on the event, both are
+  counted, and neither is dropped from the sample.
+- **Ambiguity is resolved at reporting time, never on the event.** The event keeps
+  `AMBIGUOUS`; `AmbiguityPolicy` maps it to `STOP_FIRST` (the pessimistic default),
+  `TARGET_FIRST` or `EXCLUDE` when the counts are taken. The raw fact therefore
+  survives whatever policy reads it, and a test asserts the policy does not
+  quietly reclassify the rest of the sample.
+- **The fill is a named assumption.** `FillPolicy.NEXT_OPEN` is the default — the
+  first price that existed once a closed-bar decision could be acted on.
+  `SIGNAL_CLOSE` fills at a price the engine held when it could not yet act, and is
+  available for comparison. Events carry both `plan_entry` and `entry` so the two
+  stay distinguishable.
+- **`ConflictPolicy` has three genuinely different behaviours.** `SKIP` is the
+  default and takes at most one position at a time; `CLOSE_AND_REVERSE` cuts the
+  replaced position's path at the new fill and records
+  `closed by an opposite signal`; `PARALLEL` allows overlap and names itself in the
+  caveats. Whether a signal conflicts is answered by the open position's own
+  outcome, so a position that exited three bars ago does not keep blocking signals
+  for the rest of its horizon.
+- **`caveats` is returned inside the result**, so a report cannot travel without
+  them, and two entries are generated from the run's own settings: with no horizon
+  the excursions cover the rest of the data rather than a holding period, and
+  `SKIP` with no horizon holds a position open until a level is actually reached.
+- **Two defects were found by the tests and fixed**, both recorded in
+  `docs/algorithms/BACKTESTING.md` §6. Excursions were measured to the end of the
+  horizon, which credited a stopped-out trade with everything the market did after
+  it was no longer in the trade. And level-touching used one helper for both the
+  target and the stop while reading the *favourable* extreme in both cases, so a
+  long's stop was never actually tested and every reported "stop hit" was
+  fabricated.
+- `tests/unit/test_phase18_backtesting.py` — 38 tests. The level-touching tests
+  build forward windows by hand and state the expected answer rather than running
+  through a fixture, because the fabricated readings were plausible enough to pass
+  a fixture-level test. One of them also asserts the module produces no `pnl`,
+  `equity`, `expectancy`, `profit_factor`, `win_rate`, `sharpe` or `balance` key,
+  which is the phase's central refusal.
+
+### Changed
+- **`Analyzer.analyze()` now reads the setup registry** instead of calling
+  `analyze_breakout`, `detect_h1_h2`, `detect_l1_l2` and `analyze_reversal`
+  directly. This is the `ARCHITECTURE.md` §9 work that Phases 12 to 15 each
+  deferred to "Phase 16's pipeline work", and it is now done: the pipeline holds
+  one detection path rather than two, which `CONTRIBUTING.md` rule 5 forbids.
+- `setups` is now complete. It covers the four double detectors and the fading
+  measured move, which the pipeline never ran, and each entry carries `detector`,
+  `kind` and `setup_family` alongside the detector's own payload.
+- `Analyzer.__init__` takes an optional `registry`, defaulting to
+  `build_default_registry()`. A caller who wants extra detectors passes its own
+  rather than mutating a global: `DEFAULT_REGISTRY` still exists for the
+  mutate-on-import pattern, but the analyzer does not read it by default, because
+  a process-wide mutable global makes behaviour depend on import order.
+- The per-family layers are grouped by **family**, not by the registry's `kind`.
+  Two of the eleven shipped detectors are registered with the default `kind`, so
+  grouping by it silently lost them, and `pullbacks` / `breakouts` / `reversals`
+  were coming back empty.
+- The pipeline's family key is `setup_family`, not `family`, because a payload may
+  already use that name for a narrower classification — a `MEASURED_MOVE`
+  finding's `family` is `RANGE`, `CHANNEL`, `GAP` or `INVERSE`, and overwriting it
+  would throw the projection family away.
+- `setups/base.py` gained `FAMILY_BY_DETECTOR` and `family_for()`, and
+  `trade/plan.py`'s duplicate copy now points at it. One mapping for the trade
+  layer's anatomy lookup, the pipeline's grouping and the decision layer's
+  evidence adapters, because a second copy is a second thing to keep in step.
+- `from_fading_measured_move()` added to the evidence model as its sixth
+  vocabulary: a fade's projection evidence plus its own lifecycle position
+  (`PROJECTED` 0.2, `POTENTIAL` 0.4, `DEVELOPING` 0.7, `CONFIRMED` 1.0), with
+  `COMPLETED` and `INVALIDATED` excluded for the same reason `FAILED` breakouts
+  are.
+- A detector that raises is now promoted to a result warning
+  (`DETECTOR_FAILED:<name>`, `DETECTOR_SKIPPED:<name>`). The registry contains the
+  failure rather than propagating it, so a run can come back with fewer setups
+  than it should, and "nothing found" and "something broke" must not look alike.
+- **Phase 19** — `tests/fixtures/golden/`: the five named fixtures
+  (`golden_h2_001`, `golden_breakout_001`, `golden_mtr_001`, `golden_double_001`,
+  `golden_fm_001`), and `docs/algorithms/VALIDATION.md`.
+- **The golden suite is deliberately not a snapshot of the engine's output.** A
+  golden file that stores what the code printed cannot tell a fix from a
+  regression — it fails on both and passes on neither, and the way it gets updated
+  is by pasting the new answer, which makes the human check optional. Each fixture
+  instead pins specific values, states a `basis` for every one of them, and carries
+  a list of **falsifiers**: bar edits whose effect the derivation predicts. Twelve
+  of them, and they are assertions about causality, which a snapshot structurally
+  cannot have.
+- **Provenance is enforced rather than trusted.** Every pinned value needs a stated
+  reason, every block of expectations must contain at least one piece of arithmetic,
+  and each block is checked against an allow-list of behavioural fields so
+  over-specification cannot creep in one field at a time. An unrecognised
+  `must_not` claim is a **failure**, not a skip, so a fixture cannot introduce a
+  claim nobody checks.
+- **ATR is the one value that is pinned rather than derived**, since Wilder
+  smoothing over 14 bars is checkable by hand and tedious fifty times over. The
+  suite re-derives it with an independent implementation and asserts agreement, so
+  it is two readings of the same definition rather than one agreeing with itself.
+  Everything downstream is expressed as a formula (`stop = extreme_price -
+  0.25 * atr`), so those claims hold for any ATR.
+- **Three findings, recorded rather than fixed** (`VALIDATION.md` §5):
+  - **The fade lifecycle is unreachable through the pipeline.** The registry calls
+    `create_setups`, which only seeds, and never calls
+    `track_fading_measured_moves`. A live consumer therefore sees `PROJECTED` with
+    `age 0` for a projection the market has already reached, and the five-state
+    lifecycle is reachable only by calling the module directly. Fixing it means
+    giving a stateless detector a stateful responsibility, which belongs with the
+    MT5 adapter in Phase 21 rather than with a test fixture.
+  - **The pullback window is a configuration choice, not a reading of price.** The
+    detector calls the first bar with a higher high the first leg, so in a clean
+    uptrend the "pullback" is just the last `max_pb_bars` bars. `golden_h2_001`
+    pins the config and supplies a flat top, which is what makes a higher high
+    meaningful.
+  - **Two of the three disagreements were derivations being wrong**, not engine
+    defects: a retest named at bar 20 where the forward scan stops at bar 18, and a
+    falsifier that expected to delete a double top where it actually relocates to
+    an earlier pair. Both are recorded in the fixtures and were fixed by
+    correcting the derivation.
+- `tests/unit/test_phase19_golden.py` — 47 tests, including the closed-bar contract
+  applied to the fixtures themselves and a guard that the newest bar *does* change
+  the output, so the first is not vacuous.
+- **What this phase is not**, stated in `VALIDATION.md` §1 and enforced by
+  `test_the_dataset_claims_no_edge_and_no_forecast`: it is a semantic regression
+  suite over five hand-drawn charts. It says what the engine names. It does not say
+  any setup works, and §9 lists what would be needed to change that — the largest
+  missing piece being a stated null.
+
+### Fixed
+- **A fading measured move outranked the measured move it was fading.** The
+  decision layer had no FM evidence adapter, so a fade's bundle held only the
+  shared market-state factors. Because `score()` averages *within* each source and
+  then across sources, a bundle with a single source scores that source's value
+  outright — the fade scored 100 ppts on market context alone, above a measured
+  move with real measured factors behind it, and then manufactured an
+  `EVIDENCE_CONFLICT` against the real read. Two fixes, both in place: the FM
+  adapter, and a new blocking `NO_OWN_EVIDENCE` gate that refuses to rank any
+  candidate whose bundle says nothing about its own setup. The same inversion
+  cannot come back through a family nobody wrote an adapter for.
+- **A trend trade and a fade of the same projection scored identically**, so the
+  conflict gate reported a zero-width `EVIDENCE_CONFLICT` on every strong measured
+  move. The fade's lifecycle factor is what makes the two distinguishable:
+  `POTENTIAL` means price has only *approached* the target, which is a weaker
+  claim than a confirmed projection, and the weaker claim now scores lower. The
+  gap is what the ranking sees, and it is a difference in evidence rather than a
+  tuned constant.
+- `pullbacks`, `breakouts` and `reversals` were coming back empty once detection
+  moved to the registry, because they were grouped by the registry's `kind` and
+  two shipped detectors are registered with the default one.
+
+### Added
+- **Phase 17** — `docs/algorithms/NON_REPAINT_CONTRACT.md`: the closed-bar
+  promise, finally a **numbered contract** rather than a claim scattered across
+  `ARCHITECTURE.md` §6, four algorithm specifications and a dozen tests.
+  Eighteen guarantees, `RPC-1` to `RPC-18`, each with the reason it exists, how
+  it is enforced, and the name of the test that enforces it.
+- **`RPC-7`, per-detector closure.** Every one of the eleven registered detectors
+  is checked individually, driven off `build_default_registry()`, so a detector
+  added later is covered by construction rather than by remembering. `RPC-1` is
+  asserted at the *pipeline* level, which catches a mis-wired stage but says
+  nothing about a detector that is individually wrong.
+- **`RPC-15`, the historical freeze.** A live series whose newest bar is still
+  forming is truncated, and the frozen result is compared with the historical one
+  — including while the forming bar *mutates*, which is the property a consumer
+  recomputing on every tick actually depends on.
+- **`RPC-16`, the truncation is load-bearing.** Analysing the forming bar as if it
+  were closed must produce a *different* answer, or `BarSeries` might simply be
+  ignoring its last bar and "freeze your series" would be advice with no cost.
+- **`RPC-18`, the contract is checked against the suite.** The document is parsed,
+  its `RPC-n` identifiers are collected, and every test it names is resolved
+  against the suite's own source. A renamed or deleted test fails there rather
+  than leaving the document quietly claiming something false.
+- The contract states its own vocabulary (closed bar, forming bar, `last_closed`,
+  confirmation, freeze) and a §6 on **what it does not promise**: not that the
+  analysis is good, not the same answer across brokers, not that a signal was
+  stable in hindsight, and nothing at all about gaps.
+- `docs/algorithms/NON_REPAINT_CONTRACT.md` is promoted to a required CI document,
+  and a test asserts the promotion, because a contract that can go missing is not
+  a contract.
+- `tests/unit/test_phase17_non_repaint.py`, and a test that proves the
+  reference-checker can actually fail on a deliberately bogus reference.
+
+### Documented
+- **There is no forming-bar flag, and that is the design.** `Bar` has no
+  `is_forming` field and `BarSeries` is a sequence of *closed* bars. A flag would
+  have to be threaded through every detector, and a detector that forgot to honour
+  it would be a look-ahead bug no test could see. Freezing the series is therefore
+  the **adapter's** obligation, and Phase 21 owns it. `RPC-14` and `RPC-15` say
+  what happens when it does its job and `RPC-16` what happens when it does not.
+- `ARCHITECTURE.md` §6 now points at the contract rather than describing the
+  invariant a second time, and `CONCEPT_TAXONOMY.md` §4 classifies the guarantees
+  themselves as `OBJECTIVE` — a property of arithmetic and index threading is
+  either true or it is not, which is why they are testable at all.
+
+### Known limitations
+- **The higher-timeframe veto is one blunt rule.** It knows only that the higher
+  proxy reads the other way, which is enough to withhold a signal and not enough
+  to reverse one. A genuine counter-trend trade is indistinguishable from a
+  mistake at this resolution, and `htf_opposition_veto=False` exists because the
+  default is a choice rather than a finding.
+- **The bias is a read, not a higher-timeframe strategy.** It comes from one
+  higher bar's market-state classification. There are no higher-timeframe swings,
+  legs or setups, so the higher timeframe contributes context and nothing else.
+- **A new *layer* is not covered by the contract by construction.** A detector
+  registered in the registry is, via `RPC-7`; a layer has to assert `RPC-1` for
+  itself. The contract says so rather than implying coverage it cannot provide.
+- `htf_min_strength` and `htf_opposition_veto` are chosen values on a proxy. A
+  veto that fired on every directional higher-timeframe read would be a veto on a
+  mood; a test pins the same fixture vetoing at `0.30` and not vetoing at the
+  default, so the threshold is provably doing work.
+- **No higher-timeframe claim here has been validated.** A higher-timeframe veto
+  sounds like a well-known improvement and may be one, but nothing in this project
+  has been checked against outcomes, so the claim here is only that the two
+  readings can be compared and the comparison reported.
+- `max_failed_attempts` counts two evidence codes, not failures in general, and
+  the fading-measured-move lifecycle arrived in Phase 16 while a count of *failed*
+  fades still needs the terminal states to be recordable.
+- Every gate threshold in the decision layer is a chosen value. `min_rr = 1.0` is
+  a convention. Setting `min_rr` to 3.0 does not improve a 3.1 plan; it makes
+  fewer plans eligible, which is a different thing.
+- **Adding market-state evidence to every bundle can lower a score**, because
+  `score()` balances sources and a context made of bare assertions is a weak
+  source. That is the Phase 13 per-source rule working, and a test asserts the
+  contribution rather than a rise.
+- `evaluation.compare()` is still for display only. The decision engine is the one
+  sanctioned ranking, and nothing downstream may treat the two as the same thing.
 
 ## [0.1.0] — 2026-09-27
 
@@ -282,6 +703,7 @@ implementation being brought into line with the master specification; the
 - Reversal detection, quality and decision are not yet separated.
   **Closed** (B7).
 - No `examples/`, integration, regression, parity or golden test suites yet.
-  Partly addressed: the pipeline suite in `tests/unit/test_engine_pipeline.py`
-  is an integration/regression suite. `examples/`, parity and golden fixtures
-  remain.
+  **Largely closed.** `tests/unit/test_engine_pipeline.py` is an
+  integration/regression suite, and Phase 19 added the golden fixtures at
+  `tests/fixtures/golden/` with `tests/unit/test_phase19_golden.py`. Still open:
+  `examples/` (Phase 22) and the MQL5 parity harness (Phase 20).

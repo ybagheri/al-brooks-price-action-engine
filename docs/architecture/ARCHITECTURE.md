@@ -42,11 +42,12 @@ Platform Adapter
 | Structure | `albrooks.core.{swings,legs,structures}` | Swings, legs, and structural observations. |
 | Context | `albrooks.context` | Systematic proxies for market mode. |
 | Patterns | `albrooks.setups` | Named price-action patterns and setups. |
-| Evaluation | `albrooks.evaluation` | Evidence and quality scoring. *(planned)* |
-| Decision | `albrooks.decision` | Transparent BUY/SELL/WAIT/NO_TRADE with reasons. *(planned)* |
-| Trade plan | `albrooks.trade` | Platform-independent plan objects. *(planned)* |
+| Evaluation | `albrooks.evaluation` | Evidence and quality scoring. |
+| Trade plan | `albrooks.trade` | Platform-independent plan objects. Implemented and in the pipeline. |
+| Decision | `albrooks.decision` | Transparent BUY/SELL/WAIT/NO_TRADE with reasons. Implemented and in the pipeline. |
 | Adapters | `albrooks.adapters` | Data-frame, CSV, and MT5 translation. *(planned)* |
-| Orchestration | `albrooks.engine` | Config, pipeline, result container. |
+| Orchestration | `albrooks.engine` | Config, pipeline, result container, multi-timeframe alignment. |
+| Backtesting | `albrooks.backtest` | Replays the engine over a series and records path geometry and outcome. Read-only on decisions; produces no P&L. Implemented, and **outside** the live pipeline. |
 
 ## 3. Dependency direction
 
@@ -107,7 +108,8 @@ their `confirmed_bar_index`. This gives one invariant the test suite enforces:
 > exist.
 
 See `docs/algorithms/MEASURED_MOVES.md` §5 for the enforced implementation, and
-`docs/algorithms/NON_REPAINT_CONTRACT.md` *(planned)* for the full specification.
+`docs/algorithms/NON_REPAINT_CONTRACT.md` for the full numbered statement — eighteen
+guarantees, each naming the test that enforces it.
 `tests/unit/test_engine_pipeline.py` asserts the invariant above across every layer
 of the pipeline at once, not only per detector.
 
@@ -126,11 +128,17 @@ bars ──► ATR ──► bar features ──► swings ──► legs ──
                                   │
         ┌─────────────────────────┼─────────────────────────┐
         ▼                         ▼                         ▼
-  measured moves             pullbacks                breakouts, reversals
+  measured moves             setup registry          channels, structures
+        │                         │
+        └──────────┬──────────────┘
+                   ▼
+        evidence bundles ──► trade plans ──► decision
+                                              ▲
+        higher-timeframe bias ─────────────────┘   (engine/pipeline.py)
 ```
 
-Two decisions are worth stating, because both are places where a plausible-looking
-implementation would be wrong.
+Four decisions are worth stating, because each is a place where a
+plausible-looking implementation would be wrong.
 
 **ATR is computed first and gates the whole run.** Almost every threshold is
 expressed in ATR multiples, and a detector handed `atr=0` returns "nothing found"
@@ -144,7 +152,19 @@ exist. It is asserted at the pipeline level, not only per detector, because a
 mis-wired stage — right detector, wrong index, or a series that includes the future
 — passes every one of its own unit tests. That is exactly the class of bug this
 layer is responsible for catching, and `bar_features` leaking future bars was a
-real instance of it.
+real instance of it. The full numbered statement is
+`docs/algorithms/NON_REPAINT_CONTRACT.md`.
+
+**Setup detection goes through the registry, not around it.** `analyze()` runs
+`build_default_registry()` over one `SetupContext` rather than calling four
+detectors itself, so the pipeline holds one detection path. A caller with its own
+detectors passes `Analyzer(config, registry=...)`. The registry returns findings in
+registration order, which is deterministic and is not a ranking.
+
+**Multi-timeframe alignment works in close times.** An H1 bar is not knowable until
+its last M15 bar has closed, so the pipeline aligns on
+`htf.time + htf_step <= ltf.time[i] + ltf_step` and analyses the higher series *as
+of* the aligned bar. See `MULTI_TIMEFRAME.md` §2 and §7.
 
 ### Degenerate input is reported, not hidden
 
@@ -156,10 +176,41 @@ fact rather than an inference from an empty list.
 
 ### What the pipeline does not do
 
-It reports structure, context, and setup candidates. It does not rank competing
-setups and it does not decide. `decision` is always `NO_TRADE` with the reason
-`DECISION_ENGINE_NOT_IMPLEMENTED`, because the decision engine is Phase 15 and an
-inferred BUY/SELL here would be a claim this codebase has not earned.
+It reports structure, context, setup candidates, trade-plan geometry, and a
+decision. The decision is a **ranking by declared criteria** — see
+`docs/algorithms/DECISION_ENGINE.md` §6 — and it is allowed to answer `BUY`,
+`SELL`, `WAIT` or `NO_TRADE`. It is not a validated edge, and
+`Decision.to_dict()` says so with `is_probability: false`.
+
+Two things it still will not do, both recorded in `ROADMAP.md`:
+
+- **It will not promote the least bad candidate.** With every candidate gated out,
+  the answer is `WAIT` with the failing gates named.
+- **It will not resolve a contested reading by arithmetic.** Two directions within
+  `conflict_ppts` of each other is `WAIT` / `EVIDENCE_CONFLICT`.
+
+`engine/pipeline.py` adds one more veto above all of this: a lower-timeframe
+decision that runs against a directional higher-timeframe read is withheld as
+`AGAINST_HIGHER_TIMEFRAME`. It withholds rather than reversing, because knowing the
+two disagree is not knowing which one to trade.
+
+### Backtesting sits outside the pipeline
+
+`albrooks.backtest` consumes decisions; it does not produce them. `replay()` calls
+the ordinary `analyze()` at each bar and reads the bars *after* that one only to
+classify the path. It is deliberately not a pipeline stage, and the dependency
+arrow runs one way: a backtest can be wrong about the market, and nothing the live
+pipeline does may depend on it.
+
+This is where the closed-bar invariant earns its keep. Because the analysis for
+bar `k` cannot depend on later bars, appending data cannot change a historical
+event's plan, and the only thing a horizon controls is how far the outcome is
+read. Where that stops being true — `horizon=None` runs a path to the end of the
+series — the module says so in its own `caveats` rather than leaving it to the
+reader.
+
+It reports path geometry and outcome classification and produces no P&L, equity
+curve or win rate. See `docs/algorithms/BACKTESTING.md`.
 
 ## 8. Facts vs interpretation
 

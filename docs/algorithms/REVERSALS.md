@@ -11,7 +11,7 @@ anything was detected at all, and hides that nobody has decided anything.
 |---|---|---|---|
 | Detection | `detect_reversal` | Is the structure present? Which legs? | Computes a score |
 | Quality | `assess_reversal_quality` | How many legs, and which are missing? | Searches for a pattern |
-| Decision | *Phase 15* | Should anyone act? | Lives anywhere yet |
+| Decision | `decision.decide()` (Phase 15) | Should anyone act? | Searches for a pattern |
 
 `analyze_reversal` remains as a convenience wrapper that runs both, and is
 byte-equivalent to the pre-refactor behaviour. New code should call the two
@@ -61,7 +61,9 @@ prevents it quietly becoming a calibrated probability later.
   (see [BREAKOUTS.md](BREAKOUTS.md)).
 - The 5-push pressure threshold, the 10-bar cross lookback and the 0.25 ATR EMA
   tolerance are `HEURISTIC` values chosen by this project.
-- A detected reversal is a structure, not a signal. Acting on it is Phase 15.
+- A detected reversal is a structure, not a signal. Acting on it belongs to the
+  decision layer (`albrooks.decision`, landed in Phase 15) — a reversal is a
+  *candidate*, ranked against other candidates and gated like any other.
 
 ## 5. Closed-bar contract
 

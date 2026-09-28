@@ -49,10 +49,10 @@ found" for a market that was never measured.
 ### 3.2 `SetupFinding` — a thin, uniform wrapper
 
 A name, a `kind`, a direction, and the detector's own payload dict. It is
-deliberately thin and it **does not rank anything**. Comparing setups is Phase
-15's job, and a ranking produced here would be a claim this engine has not
-earned. `SetupFinding` exists so a caller can ask "what fired, in which
-direction" without knowing which detector fired it.
+deliberately thin and it **does not rank anything**. Ranking happens one layer
+up, in `albrooks.decision` (Phase 15), and a ranking produced here would be a
+claim this engine has not earned. `SetupFinding` exists so a caller can ask
+"what fired, in which direction" without knowing which detector fired it.
 
 ### 3.3 `SetupDetector` — one method
 
@@ -85,9 +85,18 @@ Extra `**kwargs` pass through untouched, which is how a detector's own
 
 **It does not rank.** There is no "best setup" and no score. A measured-move
 target and a reversal signal are different kinds of claim, and picking between
-them is a trade decision — one that belongs to the decision engine (Phase 15), not
+them is a trade decision — one that belongs to the decision engine, not
 to a lookup table. Findings come back in **registration order**, which is
 deterministic and predictable, and is not a ranking.
+
+That decision engine now exists (Phase 15) and is the single place a ranking
+happens. The registry's order is still not one: `decision.candidates_from_findings()`
+preserves it into `candidate_id`, where it is the **last** tie-break, after
+evidence score and reward:risk have already agreed exactly. See
+`DECISION_ENGINE.md` §6.
+
+`Analyzer.analyze()` has read the registry since Phase 16, so this module is the
+pipeline's only detection path and `setups` covers all eleven shipped detectors.
 
 ## 6. Two decisions worth stating
 
@@ -122,8 +131,16 @@ than left to a comment.
 - `DEFAULT_REGISTRY` is a process-wide mutable global, provided so a third party
   can register a detector on import. `build_default_registry()` is preferred in
   library code and tests, because a shared mutable global makes test order matter.
-  A test pins that the two are independent.
-- The registry is not yet consulted by `Analyzer.analyze()`, which still calls its
-  detectors directly. The architecture claim of §9 is about adding a detector
-  without editing the analyzer, and `build_default_registry()` satisfies it; wiring
-  the pipeline to *read* the registry is Phase 16's pipeline work.
+  A test pins that the two are independent. Since Phase 16 `Analyzer` takes an
+  optional `registry=` instead, which is the form this project recommends: a
+  caller who wants extra detectors passes its own rather than mutating a global.
+  The analyzer does **not** read `DEFAULT_REGISTRY` by default.
+- **`kind` is a detector-level label, not a family.** Two of the eleven shipped
+  detectors are registered with the default `kind`, so anything that needs to file
+  a finding by family must use `setups.base.family_for()` rather than read
+  `kind`. That cost a real bug: grouping the pipeline's per-family layers by `kind`
+  silently produced three empty lists.
+- A detector added through the registry is covered by `RPC-7` of the non-repaint
+  contract **by construction** — the closure test iterates
+  `build_default_registry()`. A detector called directly, bypassing the registry,
+  is covered by nothing, which is why the analyzer takes its detectors from here.

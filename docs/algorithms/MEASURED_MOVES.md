@@ -165,8 +165,11 @@ It is **not** a probability, a win rate, or a confidence interval. Nothing here 
 been calibrated against outcomes, so `0.8` does not mean the target is reached 80% of
 the time. The *weights* rank factors against each other in `0..1`; they are not
 independent likelihoods and are not expected to sum to 1. The mean exists so a list of
-projections can be ordered at a glance. Turning this into a calibrated score is
-Phase 13's job, and it requires data this repository does not have.
+projections can be ordered at a glance. **Calibrating** any of this against
+outcomes has never been done, and is not the job of a phase that produced a
+transparent checklist: it requires real labelled data this repository does not
+have. `VALIDATION.md` §9 sets out what would be needed, and names a stated null
+as the largest missing piece.
 
 Classification: the gates deciding *which* projections form are **ALGORITHMIC**; the
 ramp constants are **HEURISTIC**; reducing two geometric ratios to one number is a

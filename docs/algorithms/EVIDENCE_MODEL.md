@@ -11,7 +11,7 @@ silent `None` for anything except a measured move.
 This module gives the five vocabularies one shape, and says plainly what the
 resulting number is.
 
-## 2. The five vocabularies
+## 2. The six vocabularies
 
 | Source | Its own evidence | Kind of claim |
 |---|---|---|
@@ -20,6 +20,7 @@ resulting number is.
 | Reversal | satisfied / missing leg codes, 0-100 count | a discrete count of legs |
 | Pullback | lifecycle `state` (`CANDIDATE`..`INVALIDATED`) | a position in a state machine |
 | Breakout | `outcome` plus `trap` / `second_leg_trap` | a position plus adverse flags |
+| Fading measured move | the projection's evidence **plus** its own lifecycle | a measurement plus a state-machine position |
 
 These are not variants of one thing. Averaging them without distinction would
 assert that they mean the same thing, which they do not.
@@ -100,6 +101,18 @@ measured-move target against a reversal leg count — is a judgement this projec
 has not earned, so nothing downstream may treat its order as a recommendation.
 That comparison is the decision engine's job (Phase 15).
 
+**The decision engine is the one place that ranks.** Phase 15 landed, and
+`decision.decide()` sorts eligible candidates by
+`(-evidence_value, -reward_to_risk, candidate_id)`. It is the narrow exception this
+document always pointed at, and the criteria are declared in `RANKING_BASIS` and
+echoed in every decision so the ranking can be argued with. It is still a ranking
+of transparent criteria with no outcome behind it. See `DECISION_ENGINE.md` §6.
+
+**The model has a consumer.** `Analyzer.analyze()` builds one bundle per setup the
+registry found and hands each to the decision layer as a `TradeCandidate`, which
+is what `min_score` gates on. The pipeline's own flat `evidence` list keeps its
+`source` / `code` / `detail` shape.
+
 ## 7. Known limitations
 
 - The lifecycle values used by the pullback adapter (`CANDIDATE` 1/3,
@@ -110,7 +123,31 @@ That comparison is the decision engine's job (Phase 15).
   decide whether a factor is `MEASURED`. This works for the current three codes
   and would need revisiting if the market-state engine started emitting
   mid-sentence numbers, which is why the parser only ever reads the last token.
-- The model is not yet consumed by `Analyzer.analyze()`. The pipeline's own
-  `evidence` list is unchanged; wiring the two together is Phase 16's pipeline
-  work, and doing it here would have changed output the existing pipeline tests
-  pin.
+- **`score()` averages within each source, so a bundle with one source scores that
+  source's value outright.** A bundle holding only `MARKET_STATE` — which is added
+  to every candidate and is identical for all of them — therefore scores at the
+  market state's value with no penalty for having observed nothing about its own
+  setup. This produced a real inversion in Phase 16, where a fading measured move
+  scored 100 ppts on market context alone and outranked a measured move with real
+  factors behind it. The decision layer's blocking `NO_OWN_EVIDENCE` gate is the
+  structural fix; see `DECISION_ENGINE.md` §5.1.
+- The fading-measured-move lifecycle values (`PROJECTED` 0.2, `POTENTIAL` 0.4,
+  `DEVELOPING` 0.7, `CONFIRMED` 1.0) are evenly spaced for stability, exactly as
+  the pullback adapter's are, and the gaps are **not** meaningful.
+  `COMPLETED` and `INVALIDATED` are excluded, for the same reason `FAILED`
+  breakouts are.
+- `from_fading_measured_move()` was added in Phase 16 for the reason the pullback
+  adapter exists: a fade is a lifecycle over someone else's target, and without
+  the lifecycle factor the fade and the projection it fades scored **identically**,
+  which the decision layer reported as a zero-width `EVIDENCE_CONFLICT` on every
+  strong measured move.
+- `from_measured_move()` and `from_reversal()` read a payload as readily as a
+  model, added in Phase 15. Every detector's public path is `to_dict()`: the
+  registry passes findings around as plain dicts and `analyze()` reports them as
+  dicts, so an adapter that only understood objects could not reach the
+  measured-move and reversal evidence at all. The object is still preferred, and
+  a test asserts a payload and its model normalise identically.
+- Market-state evidence is added to **every** bundle, because context is part of
+  what backs a candidate. A consequence worth knowing: `score()` balances sources,
+  so a bundle whose context is mostly bare assertions can score *lower* than the
+  same bundle without it. That is the per-source rule working, not a bug.
