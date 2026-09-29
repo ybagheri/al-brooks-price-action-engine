@@ -21,8 +21,9 @@ different claims:
 
 ## Where the project stands
 
-**22 of 24 phases are complete.** Phases 0 through 20 and 22 are done and verified
-by the test suite. Phase 21 is partially delivered and Phase 23 remains.
+**23 of 24 phases are complete.** Phases 0 through 20, 22 and 23 are done and
+verified by the test suite. Phase 21 is the only one that remains, and it is
+partially delivered and blocked on hardware.
 
 ### The engine is finished; the platform it runs on is not
 
@@ -56,7 +57,7 @@ tested. The MQL5 port is not, and cannot be from where this was written.**
 |---|---|---|
 | **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **blocked** | Needs MetaEditor and a terminal to write *and validate* a second implementation — which is what Phase 20 defined the contract for |
 | **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | **Complete.** Needed a stable serialized contract to hand an agent, and it now has one |
-| **23 — Bilingual Documentation** | Expanded English and Persian documentation | Not started. Documentation-only; owes no new code path |
+| **23 — Bilingual Documentation** | `docs/fa/`, and a test that keeps the two trees from drifting | **Complete.** An honest index plus the three documents whose claims a reader could act on |
 
 The port is not a deferral dressed up as a plan. An MQL5 implementation of this
 scope — eleven detectors, the market-state classifier, the plan geometry and the
@@ -546,9 +547,55 @@ reader of that phase will open first.
     `summary` or `signal` field** — anything a consumer would call "the signal"
     would be an interpretation this project has not earned.
 
-- [ ] **Phase 23 — Comprehensive Bilingual Documentation**
-  - **Objective**: Complete English and Persian documentation suite (`README.md`, `README_FA.md`, algorithm specs).
-  - **Deliverable**: `docs/`, `README.md`, `README_FA.md`.
+- [x] **Phase 23 — Comprehensive Bilingual Documentation**
+  - **Objective**: Complete English and Persian documentation suite.
+  - **Deliverable**: `docs/fa/`, and `tests/unit/test_phase23_bilingual.py` — 15
+    tests.
+  - **What actually existed before this phase**: 24 English documents and **zero**
+    Persian ones. `README_FA.md` was a 19-section translation of a 20-section
+    English README, and no algorithm or architecture document had a Persian
+    counterpart. So the gap was not "some translations are thin" but "the
+    algorithmic documentation is monolingual".
+  - **`docs/fa/README.md` is an index that records the status of every document
+    in both languages**, because the alternative — translating everything and
+    saying so — would be a claim nobody could check. The two states a reader must
+    not confuse are *"there is a Persian version"* and *"there is no Persian
+    version"*, and the index says which is which for all 24 documents.
+  - **Three documents are translated in full**, chosen by a stated rule rather
+    than by convenience: a document is translated when it makes a claim a reader
+    could **act on**. `CONCEPT_TAXONOMY.md` (why no number here is a
+    probability), `VALIDATION.md` (what is missing, and §9's four prerequisites)
+    and `AI_INTERFACE.md` (what the LLM interface refuses to emit). A Persian
+    reader acting on `evidence_score` without the first is worse off than a reader
+    with no document at all.
+  - **The rest are recorded as untranslated, explicitly.** That is a better state
+    than a machine-translated tree of 4,000 lines: the errors a machine
+    translation introduces are exactly of the dangerous kind — a score rendered
+    as a confidence — and a partial translation whose status is declared is
+    honest where a complete uncertain one is not. The reason is argued in
+    `docs/fa/README.md` rather than left as an omission.
+  - **The two trees cannot drift apart silently.** The English documents are
+    unverifiable by anything else, because the tests read the Python and not the
+    prose — so the claims this project refuses to make are made in prose, and
+    prose is what nothing checks. `test_phase23_bilingual.py` therefore asserts
+    that every English document has a recorded Persian status in both directions,
+    that a document marked translated exists and one marked untranslated does
+    not, that a full translation carries the **same numbered sections** as its
+    source, and that each carries its English source and the statement that
+    English is authoritative on conflict.
+  - **The one substantive check is about the rule itself.** A translation that
+    renders "evidence score" as "درجهٔ اطمینان" has introduced, in one word, the
+    exact claim `CONCEPT_TAXONOMY.md` §5 exists to prevent. The test asserts each
+    translated document **affirms** the no-probability rule rather than scanning
+    for forbidden words — and the reason it is phrased that way is recorded: the
+    first version scanned, and it flagged every line that *denied* the claim,
+    because "this is not a probability" contains the words "not" and
+    "probability". Seven English lines were false positives, including §5 itself.
+    A check that cries wolf gets disabled, and a disabled check protects nothing.
+  - **Identifiers are not translated.** `OBJECTIVE`, `is_probability`,
+    `FORBIDDEN_KEYS` and the other six taxonomy labels and field names appear
+    verbatim, because a translator who renames a field produces prose that reads
+    correctly and cannot be used.
 
 ---
 
@@ -773,6 +820,42 @@ that. The constant is retained as a reserved marker, not because it is live.
 
 *Changes when:* something needs a per-*value* not-implemented marker, as opposed
 to the per-*layer* one already implemented.
+
+### `docs/fa/` is an index first, and a translation second
+
+Phase 23 added a Persian documentation tree, and its most important file is
+`docs/fa/README.md` — an **index that records, for all 24 English documents,
+whether a Persian version exists**. It is the first thing in the tree because the
+failure it prevents is a reader assuming a translation exists when it does not, or
+the reverse.
+
+**Three documents are translated in full**, chosen by a stated rule: a document is
+translated when it makes a claim a reader could *act on*. That is
+`CONCEPT_TAXONOMY.md` (why no number here is a probability), `VALIDATION.md` (what
+is missing, and §9's four prerequisites) and `AI_INTERFACE.md` (what the LLM
+interface refuses to emit). A Persian reader acting on `evidence_score` without the
+first is worse off than a reader with no document at all.
+
+**The other 21 are marked untranslated, and that is a decision rather than an
+omission.** A machine translation of the remaining 4,000 lines would have produced
+the *appearance* of completeness and the *substance* of guesswork, and the errors a
+machine translation introduces are exactly the dangerous kind: a score rendered as a
+confidence, in one word. A partial translation whose status is declared is honest
+where a complete uncertain one is not.
+
+`tests/unit/test_phase23_bilingual.py` keeps the two trees from drifting: every
+English document must have a recorded status in both directions, a document marked
+translated must exist, a full translation must carry the **same numbered sections**
+as its source, and each must name its English source and say which text is
+authoritative on conflict.
+
+**What that test cannot do** is judge whether a Persian sentence means what its
+English source means. That needs a bilingual reviewer. What it does is stop the
+trees diverging in **structure**, **completeness**, and the one class of claim this
+project exists to avoid.
+
+*Changes when:* someone translates another document, or a bilingual reviewer audits
+the three that exist.
 
 ### `examples/llm_analysis.py` makes no model call
 

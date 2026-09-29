@@ -17,8 +17,8 @@ never depends on MetaTrader 5. Platform integration lives strictly in adapters.
 
 ## Status
 
-**22 of 24 phases are complete** (0-20 and 22). Two remain, and both are platform
-or documentation work rather than analysis work.
+**23 of 24 phases are complete** (all but 21). One remains, and it is blocked on
+hardware rather than on effort.
 
 Phase 21 is **partially** delivered: the adapter, the freeze and the stateful
 session are built, tested **and run against a live MetaTrader terminal** (which
@@ -28,8 +28,12 @@ blocked on MetaEditor and parity therefore still reports `UNVERIFIED`.
 
 Phase 22 needed no external tooling and is complete: a stable, self-reporting
 serialization for a language model that makes the payload 91% smaller and refuses
-to emit a bare score. See [ROADMAP.md](ROADMAP.md) → *Where the project stands*
-for the full picture and [CHANGELOG.md](CHANGELOG.md) for history.
+to emit a bare score. Phase 23 added `docs/fa/`, an index that records the
+Persian status of all 24 English documents plus the three whose claims a reader
+could act on.
+
+See [ROADMAP.md](ROADMAP.md) → *Where the project stands* for the full picture
+and [CHANGELOG.md](CHANGELOG.md) for history.
 
 | Area | State |
 |---|---|
@@ -53,7 +57,7 @@ for the full picture and [CHANGELOG.md](CHANGELOG.md) for history.
 | MT5 adapter | **Implemented and run against a live terminal** — Phase 21. Feed, series direction, forming-bar freeze, stateful session |
 | MQL5 layer | **Not started** — Phase 21, blocked on MetaEditor. Nothing has been compared |
 | AI / LLM interface | **Implemented** — Phase 22. 91% smaller payload, no score leaves as a bare number |
-| Bilingual documentation | **Partial** — Phase 23 |
+| Bilingual documentation | **Partial by choice** — Phase 23. `docs/fa/` indexes all 24 English docs and translates the three whose claims a reader could act on |
 
 **Implementation status is not trading validation.** See
 [Limitations](#limitations) — no performance claim is made anywhere in this

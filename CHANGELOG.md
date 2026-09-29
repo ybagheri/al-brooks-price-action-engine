@@ -11,6 +11,58 @@ been statistically validated, and no performance claim is made.
 ## [Unreleased]
 
 ### Added
+- **Phase 23** — `docs/fa/`: a Persian documentation tree, and
+  `tests/unit/test_phase23_bilingual.py` — 15 tests that keep the two languages
+  from drifting apart silently. Closes the last phase that needed no external
+  tooling.
+  - **What actually existed before this**: 24 English documents and **zero**
+    Persian ones. `README_FA.md` was a 19-section translation of a 20-section
+    English README, and no algorithm or architecture document had a Persian
+    counterpart. The gap was not "some translations are thin" but "the
+    algorithmic documentation is monolingual".
+  - **`docs/fa/README.md` is an index first and a translation second.** It
+    records, for all 24 English documents, whether a Persian version exists. The
+    two states a reader must not confuse are *"there is a translation"* and
+    *"there is not"*, and the index says which is which.
+  - **Three documents are translated in full**, chosen by a stated rule rather
+    than convenience: a document is translated when it makes a claim a reader
+    could **act on**. That is `CONCEPT_TAXONOMY.md` (why no number here is a
+    probability), `VALIDATION.md` (what is missing and §9's four prerequisites)
+    and `AI_INTERFACE.md` (what the LLM interface refuses to emit). A Persian
+    reader acting on `evidence_score` without the first is worse off than a
+    reader with no document at all.
+  - **The other 21 are recorded as untranslated, and that is a decision.**
+    A machine translation of the remaining 4,000 lines would have produced the
+    *appearance* of completeness and the *substance* of guesswork, and the
+    errors a machine translation introduces are exactly the dangerous kind: a
+    score rendered as a confidence, in one word. A partial translation whose
+    status is declared is honest where a complete uncertain one is not.
+  - **The two trees cannot drift silently.** The English documents are
+    unverifiable by anything else, because the tests read the Python and not the
+    prose — so the claims this project refuses to make are made in prose, and
+    prose is what nothing checks. The suite therefore asserts that every
+    English document has a recorded Persian status in **both** directions, that
+    one marked translated exists and one marked untranslated does not, that a
+    full translation carries the **same numbered sections** as its source, and
+    that each names its English source and says which text is authoritative on
+    conflict.
+  - **The one substantive check is about the rule itself, and its first version
+    was wrong.** A translation rendering "evidence score" as "درجهٔ اطمینان" has
+    introduced the exact claim `CONCEPT_TAXONOMY.md` §5 exists to prevent. The
+    obvious test is a forbidden-phrase scan, and it flagged every line that
+    *denied* the claim — because "this is not a probability" contains the words
+    "not" and "probability". Seven English lines were false positives, including
+    §5 itself. So the property is stated the other way round: **a translated
+    document must affirm the rule**, which a translation calling a score a
+    confidence would not do. A check that cries wolf gets disabled, and a
+    disabled check protects nothing.
+  - **Identifiers are not translated.** `OBJECTIVE`, `is_probability`,
+    `FORBIDDEN_KEYS` and the other taxonomy labels and field names appear
+    verbatim, because a translator who renames a field produces prose that reads
+    correctly and cannot be used.
+  - Both guards were verified by breaking them: removing a section from a
+    translation and flipping a required denial both fail the suite, and both
+    restore clean.
 - **Phase 22** — `src/albrooks/serialization/json.py`: a stable JSON serialization
   for a language model, `examples/llm_analysis.py` as a runnable demonstration,
   `docs/algorithms/AI_INTERFACE.md` as the specification, and 43 tests. Closes the
