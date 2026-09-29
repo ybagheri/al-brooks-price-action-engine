@@ -48,7 +48,9 @@ README_FA = REPO / "README_FA.md"
 #: A watermark models "phases land in order", which was true until the first phase
 #: had to wait on hardware. A set models what is actually true, and a phase that is
 #: genuinely complete after a blocked one is not a defect to be encoded away.
-LAST_COMPLETE_PHASE = 22
+#:
+#: Phase 23 is complete and the set is therefore everything except 21.
+LAST_COMPLETE_PHASE = 23
 LAST_PHASE = 23
 
 #: Phases that are complete, derived from the watermark. Everything at or below
@@ -63,16 +65,11 @@ COMPLETE_PHASES: frozenset[int] = (
 #: The highest phase that has *started*, which may own a document that is already
 #: required because the part of it that shipped needs documenting.
 #:
-#: Phase 22 is the case in point. `serialization/json.py`, `AI_INTERFACE.md` and
-#: `examples/llm_analysis.py` all landed together, so the document is required
-#: while the phase stays unchecked until its code is committed and verified as a
-#: unit.
-#:
-#: A document for work that has *not* started is still refused — the distinction
+#: A document for work that has *not* started is still refused -- the distinction
 #: this constant draws is between a phase in flight and a phase not yet begun.
 #: Note that Phase 21 is *not* complete either: its MQL5 port is blocked on
 #: MetaEditor, and nothing here should be read as saying otherwise.
-IN_PROGRESS_PHASE = 22
+IN_PROGRESS_PHASE = 23
 
 MARKDOWN = sorted(
     p

@@ -65,6 +65,7 @@ REQUIRED_DOCS: tuple[tuple[str, int], ...] = (
     ("docs/PYTHON_MQL5_PARITY.md", 20),
     ("docs/algorithms/MT5_ADAPTER.md", 21),
     ("docs/algorithms/AI_INTERFACE.md", 22),
+    ("docs/fa/README.md", 23),
 )
 
 # Only documents owed by a phase that has NOT been completed yet.
