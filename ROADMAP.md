@@ -21,8 +21,8 @@ different claims:
 
 ## Where the project stands
 
-**21 of 24 phases are complete.** Phases 0 through 20 are done and verified by the
-test suite. Phases 21 through 23 remain.
+**22 of 24 phases are complete.** Phases 0 through 20 and 22 are done and verified
+by the test suite. Phase 21 is partially delivered and Phase 23 remains.
 
 ### The engine is finished; the platform it runs on is not
 
@@ -45,6 +45,7 @@ bars -> features -> swings/legs -> context -> structures -> setups (11 detectors
 | Non-repaint contract (`RPC-1`..`RPC-18`) | Complete |
 | Backtesting interface | Complete — path geometry and outcome, **no P&L by design** |
 | Golden fixtures | Complete — five hand-authored charts, hand-derived expectations |
+| LLM serialization | Complete — 91.3% reduction, and no score leaves as a bare number |
 
 ### Phase 21 is half delivered, and the half that is missing needs hardware
 
@@ -54,7 +55,7 @@ tested. The MQL5 port is not, and cannot be from where this was written.**
 | Phase | What it adds | State |
 |---|---|---|
 | **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **blocked** | Needs MetaEditor and a terminal to write *and validate* a second implementation — which is what Phase 20 defined the contract for |
-| **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | Not started. Needs a stable serialized contract to hand an agent |
+| **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | **Complete.** Needed a stable serialized contract to hand an agent, and it now has one |
 | **23 — Bilingual Documentation** | Expanded English and Persian documentation | Not started. Documentation-only; owes no new code path |
 
 The port is not a deferral dressed up as a plan. An MQL5 implementation of this
@@ -485,9 +486,65 @@ reader of that phase will open first.
     `mql5/` does not exist and that the parity run still reports `UNVERIFIED`, so
     the day a real sidecar lands the documentation has to move in the same change.
 
-- [ ] **Phase 22 — AI / LLM Interface**
+- [x] **Phase 22 — AI / LLM Interface**
   - **Objective**: Stable JSON serialization for LLM agents, diagnostic output, example script.
-  - **Deliverable**: `src/albrooks/serialization/json.py`, `examples/llm_analysis.py`.
+  - **Deliverable**: `src/albrooks/serialization/json.py`,
+    `examples/llm_analysis.py`, `docs/algorithms/AI_INTERFACE.md`, 43 tests.
+  - **A reduction with a measured justification, not a reformatting.**
+    `AnalysisResult.to_dict()` is 73,769 characters for a 60-bar series and
+    **88.9% of that is `bar_features`** — 28 numeric fields per bar. A model
+    handed the raw payload spends its attention on per-bar arithmetic and has
+    almost none left for the decision. `brief()` produces **6,384 characters, a
+    91.3% reduction, ~1,600 estimated tokens**, and the example script prints that
+    comparison so the claim is checkable rather than asserted.
+  - **An LLM is the riskiest consumer in this project, and the interface is built
+    around that.** Handed `{"action": "BUY", "evidence_score": 0.85}`, a model
+    reads a probability, because that is what those shapes mean everywhere else.
+    It is not: `CONCEPT_TAXONOMY.md` §5 classifies nothing here as `STATISTICAL`,
+    because nothing has been validated against outcomes. Four mechanisms make the
+    misreading *structurally hard* rather than merely discouraged, and each is
+    tested:
+  - **No score leaves as a bare number.** Every such value is an object carrying
+    `is_probability: false` and a sentence saying what it is, so there is nothing
+    to pattern-match. A test walks the whole payload and asserts no number
+    appears under a score-like key unless its parent carries a label — so a
+    section added later is covered by construction.
+  - **The refusals are enforced on every call.** `confidence`, `pnl`, `win_rate`,
+    `expectancy`, `profit_factor` and six more are refused at *any depth* by
+    `_assert_refusals()`, which runs inside `brief()` rather than only in tests.
+    The suite tests every key, and proves the guard fires against real output by
+    injecting a simulated future `confidence` field. Same pattern Phase 18 uses on
+    the backtest module.
+  - **The caveats cannot be dropped.** No flag suppresses them, and a test
+    asserts the specific misreadings are addressed rather than merely that
+    caveats exist. `PROVENANCE` declares `is_validated: false`,
+    `is_a_recommendation: false` and `is_financial_advice: false` explicitly
+    rather than by absence.
+  - **A reduction says so.** `truncated` is on every call, listing each dropped
+    section with a reason and an item count, and an *empty* list is still a claim
+    that is tested as such. Sections are dropped **whole** — half a stop price is
+    a different stop, so a payload that is wrong rather than incomplete is the one
+    outcome this cannot produce.
+  - **Prices are not rounded by default.** The fixture's stop is
+    `106.68656533354194`; rounding it to 2dp moves the stop through the level it
+    protects. `float_digits` exists for display and records `is_lossy: true`.
+  - **The instructions come *after* the data, deliberately.** A model reads the
+    data first, so framing placed first would compete for attention with 6,000
+    characters of numbers; placed last it is the final thing in the context.
+  - **The schema version is separate from the parity contract.**
+    `albrooks-llm/1` is a single-implementation payload for a reader;
+    `albrooks-parity/1` is a two-implementation comparison contract with
+    per-field tolerance classes. They will drift, and sharing a version would make
+    "the fields moved" indistinguishable from "the market moved".
+  - **Deterministic by construction.** Sorted keys and shortest-round-trip float
+    repr, so the same analysis always produces byte-identical JSON. That is what
+    makes a regression on the *payload* visible at all, and it is why
+    `tests/fixtures/golden/` can stay a hand-derived suite rather than becoming a
+    snapshot — a snapshot of a non-deterministic output fails on every run.
+  - **What it will not do**: no field readable as a probability, no suppressible
+    caveats, no silent truncation, no model call in the example, and **no
+    `summary` or `signal` field** — anything a consumer would call "the signal"
+    would be an interpretation this project has not earned.
 
 - [ ] **Phase 23 — Comprehensive Bilingual Documentation**
   - **Objective**: Complete English and Persian documentation suite (`README.md`, `README_FA.md`, algorithm specs).
@@ -717,11 +774,20 @@ that. The constant is retained as a reserved marker, not because it is live.
 *Changes when:* something needs a per-*value* not-implemented marker, as opposed
 to the per-*layer* one already implemented.
 
-### `examples/` does not exist
+### `examples/llm_analysis.py` makes no model call
 
-There is no `examples/` directory, so nothing of ours is untracked or lost on a
-fresh clone. Phase 22 owns `examples/llm_analysis.py`. The 0.1.0 changelog listed
-missing examples as a known gap, and that gap is still open.
+The example produces the payload and prints it. There is no API call, no key and
+no network, and that is deliberate: the testable part of an LLM interface is the
+*shape of the payload*, and adding a model call would make the example depend on
+a key, a connection, and a model's mood on the day.
+
+It also means the example cannot be mistaken for a demo of "ask an AI and get a
+trade". It demonstrates a serialization and its refusals. Whether any particular
+model reads the payload correctly is **not measured**, and adding that claim would
+be the same error the interface is built to prevent.
+
+*Changes when:* an evaluation exists that says something about it. There is none,
+and `VALIDATION.md` §9 is where one would have to start.
 
 ### `mql5/` does not exist, and that is a statement about the hardware
 

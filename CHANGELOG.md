@@ -11,6 +11,82 @@ been statistically validated, and no performance claim is made.
 ## [Unreleased]
 
 ### Added
+- **Phase 22** — `src/albrooks/serialization/json.py`: a stable JSON serialization
+  for a language model, `examples/llm_analysis.py` as a runnable demonstration,
+  `docs/algorithms/AI_INTERFACE.md` as the specification, and 43 tests. Closes the
+  0.1.0 known gap for a missing `examples/` directory.
+  - **A reduction with a measured justification, not a reformatting.**
+    `AnalysisResult.to_dict()` is 73,769 characters for a 60-bar series and
+    **88.9% of that is `bar_features`** — 28 numeric fields per bar. A model handed
+    the raw payload spends its attention on per-bar arithmetic and has almost none
+    left for the decision. `brief()` produces **6,384 characters: a 91.3% reduction,
+    ~1,600 estimated tokens**, and the example script prints that comparison so the
+    claim is checkable rather than asserted.
+  - **An LLM is the riskiest consumer in this project, and the interface is built
+    around that fact.** Handed `{"action": "BUY", "evidence_score": 0.85}` a model
+    reads a probability, because that is what those shapes mean everywhere else. It
+    is not: `CONCEPT_TAXONOMY.md` §5 classifies nothing here as `STATISTICAL`,
+    because nothing has been validated against outcomes. Four mechanisms make the
+    misreading *structurally hard* rather than merely discouraged, and each is
+    tested.
+  - **No score leaves as a bare number.** Every such value is an object carrying
+    `is_probability: false` and a sentence saying what it is, so there is nothing
+    for a model to pattern-match, and the label travels at the point of use rather
+    than in a preamble that gets skipped. A test walks the whole payload and
+    asserts no number appears under a score-like key unless its parent is labelled —
+    so a section added later is covered by construction.
+  - **The refusals are enforced on every call, not documented.** `confidence`,
+    `pnl`, `win_rate`, `expectancy`, `profit_factor` and six more are refused at
+    *any depth* by `_assert_refusals()`, which runs inside `brief()`. The suite
+    tests every key, plus nested, list-contained and renamed variants, and proves
+    the guard fires against real output by injecting a simulated future
+    `confidence` field into `_decision()`. A guard that has never failed is
+    indistinguishable from one that cannot fail. Same pattern Phase 18 uses on the
+    backtest module.
+  - **The caveats cannot be dropped.** No flag suppresses them, and a test asserts
+    the specific misreadings are addressed rather than that caveats merely exist.
+    `PROVENANCE` declares `is_validated: false`, `is_a_recommendation: false` and
+    `is_financial_advice: false` explicitly rather than by absence, because absence
+    is ambiguous and these are the fields a reader is most likely to check.
+  - **A reduction says so.** `truncated` is present on *every* call, listing each
+    dropped section with a reason and an item count; an *empty* list is still a
+    claim and is tested as such. Sections are dropped **whole** — half a stop price
+    is a different stop, so a payload that is wrong rather than incomplete is the
+    one outcome this cannot produce.
+  - **Prices are not rounded by default.** The fixture's stop is
+    `106.68656533354194`; rounding to 2dp moves the stop through the level it
+    protects. `float_digits` exists for display and records `is_lossy: true`.
+  - **The instructions come *after* the data, deliberately.** A model reads the
+    data first and the framing second, so framing placed first would compete for
+    attention with 6,000 characters of numbers; placed last it is the final thing
+    in the context, the position recency favours.
+  - **A separate schema version.** `albrooks-llm/1` is a single-implementation
+    payload for a reader; `albrooks-parity/1` is a two-implementation comparison
+    contract with per-field tolerance classes. They will drift, and sharing a
+    version would make "the fields moved" indistinguishable from "the market
+    moved". A test asserts the two are distinct.
+  - **Deterministic by construction.** Sorted keys and shortest-round-trip float
+    repr, so the same analysis always produces byte-identical JSON. That is what
+    makes a regression on the *payload* visible, and it is why
+    `tests/fixtures/golden/` can stay a hand-derived suite: a snapshot of a
+    non-deterministic output fails on every run.
+  - `canonical()` keeps the full result with a promise attached — nothing dropped,
+    nothing rounded — for diffing and regression.
+  - `estimate_tokens()` is labelled an estimate: four characters per token is
+    reasonable for English JSON and poor for code or Persian text, and a number in
+    the wrong unit would be worse than no number.
+- **What the interface refuses**: any field readable as a probability, a
+  suppressible caveat, a silent truncation, price rounding by default, a model call
+  in the example, and **no `summary` or `signal` field** — anything a consumer would
+  call "the signal" would be an interpretation this project has not earned.
+- **Phase 22 is complete while Phase 21 is not**, which broke an assumption baked
+  into `test_project_status.py`: that completed phases are contiguous. They are
+  not and cannot be — Phase 21's MQL5 port is blocked on MetaEditor indefinitely,
+  while Phase 22 needed nothing external. The watermark `LAST_COMPLETE_PHASE` is
+  replaced by a `COMPLETE_PHASES` set, and the roadmap's progress sentence is
+  asserted to agree with its own checkboxes. "Phases 0 through 22 are done" was
+  false the moment Phase 22 landed, and a summary sentence that reads as truth and
+  is not is the specific failure this project's own test file exists to catch.
 - **Phase 21, partially delivered** — `src/albrooks/adapters/mt5/`: the MetaTrader 5
   adapter, and the two obligations `NON_REPAINT_CONTRACT.md` §4 assigns to an
   adapter rather than to the analysis. `docs/algorithms/MT5_ADAPTER.md`, and 54
@@ -94,13 +170,17 @@ been statistically validated, and no performance claim is made.
     cannot: which functions exist, which direction arrives, whether both
     conventions agree, and whether `RPC-2` holds on a real series. A skip is not a
     pass, and every skip names its reason.
-  - **The `RPC-2` check was itself wrong on its first live run, and that is
-    recorded too.** It searched the serialised result for the forming bar's high as
-    a *substring*, and EURUSD quotes to five decimals — so a forming high of
-    `1.13640` matched `1.13645`, a closed bar's low. The comparison is now numeric
-    at the instrument's own precision, read from `symbol_info` rather than assumed,
-    and it checks the two extremes rather than the close (a forming close is the
-    last traded price, which a prior bar can legitimately share).
+  - **The `RPC-2` check was itself wrong on two live runs, and that is recorded
+    too.** It searched the serialised result for the forming bar's high as a
+    *substring*, so a forming high of `1.13640` matched `1.13645`, a closed bar's
+    low. Making it numeric was necessary and not sufficient: it fired again when
+    the forming bar's high of `1.13654` turned out to be *also* a closed bar's
+    high. A leak means a price that exists **only** on the forming bar, so the
+    check now subtracts the closed bars' own extremes and skips when the forming
+    bar's extremes are entirely shared — a run on which the two cases are
+    indistinguishable, and claiming otherwise would be the same error in a third
+    disguise. A false-positive test is worse than no test, because it teaches you
+    to ignore the suite.
 - `docs/algorithms/MT5_ADAPTER.md` is a **required** CI document, and it states in
   §5 that `mql5/` does not exist and why.
 - **Phase 20** — `tests/parity/`: the Python/MQL5 parity harness, and

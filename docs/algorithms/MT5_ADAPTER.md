@@ -351,17 +351,26 @@ of claims a fake cannot check:
 - that a live freeze drops exactly one bar on a liquid symbol;
 - that `RPC-2` holds on a real series — no forming-bar price reaches a result.
 
-**A fourth defect turned up in this file rather than in the adapter.** The `RPC-2`
-check searched the serialised result for the forming bar's high as a *substring*,
-and EURUSD quotes to five decimals, so a forming high of `1.13640` matched
-`1.13645` — a **closed** bar's low, and entirely legitimate. The test was wrong, not
-the engine. The check is now numeric, at the precision `symbol_info` reports rather
-than an assumed one, and it compares the forming bar's two *extremes* rather than
-its close: a forming close is the last traded price, which a prior bar can
-legitimately share, so including it would fail at random.
+**A fourth defect turned up in this file rather than in the adapter, and it took
+two attempts.** The `RPC-2` check searched the serialised result for the forming
+bar's high as a *substring*, and EURUSD quotes to five decimals, so a forming high
+of `1.13640` matched `1.13645` — a **closed** bar's low. Fixing that to a numeric
+comparison was necessary and not sufficient: on a later live run it fired again,
+because the forming bar's high of `1.13654` was *also* the high of a closed bar.
+Both failures were the test being wrong, not the engine.
 
-That is the same lesson as the three above, one level down — an assumption about the
-data's shape, made confidently and not checked.
+The property that actually holds is narrower than the one the test was checking.
+A leak means a price that exists **only** on the forming bar; a price the market
+has also printed on a closed bar is not a leak no matter where it appears. So the
+check now subtracts the closed bars' own extremes before comparing, and skips
+when the forming bar's extremes happen to be entirely shared — because on such a
+run the test cannot distinguish the two cases, and pretending otherwise would be
+the same error in a third disguise.
+
+That is the same lesson as the three adapter defects, one level down: **an
+assumption about the data's shape, made confidently and not checked.** A
+false-positive test is worse than no test, because it teaches you to ignore the
+suite.
 
 ```bat
 set ALBROOKS_MT5_PATH="C:\Users\<you>\AppData\Roaming\Alpari MT5_4\terminal64.exe"

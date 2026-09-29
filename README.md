@@ -17,14 +17,19 @@ never depends on MetaTrader 5. Platform integration lives strictly in adapters.
 
 ## Status
 
-**21 of 24 phases are complete** (0-20). Phases 21-23 remain, and all three are
-platform work rather than analysis work. Phase 21 is **partially** delivered: the
-adapter, the freeze and the stateful session are built, tested **and run against a
-live MetaTrader terminal** (which found three defects the fake-driven tests had
-passed — see [MT5_ADAPTER.md §10](docs/algorithms/MT5_ADAPTER.md)), while the MQL5
-port is blocked on MetaEditor and parity therefore still reports `UNVERIFIED`. See
-[ROADMAP.md](ROADMAP.md) → *Where the project stands* for the full picture and
-[CHANGELOG.md](CHANGELOG.md) for history.
+**22 of 24 phases are complete** (0-20 and 22). Two remain, and both are platform
+or documentation work rather than analysis work.
+
+Phase 21 is **partially** delivered: the adapter, the freeze and the stateful
+session are built, tested **and run against a live MetaTrader terminal** (which
+found three defects the fake-driven tests had passed — see
+[MT5_ADAPTER.md §10](docs/algorithms/MT5_ADAPTER.md)), while the MQL5 port is
+blocked on MetaEditor and parity therefore still reports `UNVERIFIED`.
+
+Phase 22 needed no external tooling and is complete: a stable, self-reporting
+serialization for a language model that makes the payload 91% smaller and refuses
+to emit a bare score. See [ROADMAP.md](ROADMAP.md) → *Where the project stands*
+for the full picture and [CHANGELOG.md](CHANGELOG.md) for history.
 
 | Area | State |
 |---|---|
@@ -47,7 +52,7 @@ port is blocked on MetaEditor and parity therefore still reports `UNVERIFIED`. S
 | MQL5 parity | **Harness built, nothing compared** — Phase 20. No MQL5 build exists yet |
 | MT5 adapter | **Implemented and run against a live terminal** — Phase 21. Feed, series direction, forming-bar freeze, stateful session |
 | MQL5 layer | **Not started** — Phase 21, blocked on MetaEditor. Nothing has been compared |
-| AI / LLM interface | **Not started** — Phase 22 |
+| AI / LLM interface | **Implemented** — Phase 22. 91% smaller payload, no score leaves as a bare number |
 | Bilingual documentation | **Partial** — Phase 23 |
 
 **Implementation status is not trading validation.** See

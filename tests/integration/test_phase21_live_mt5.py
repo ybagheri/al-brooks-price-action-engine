@@ -285,16 +285,35 @@ def test_the_live_analysis_never_reports_a_price_from_the_forming_bar(feed: Any)
 
     result = AnalysisSession().on_bars(frozen.series, freeze=frozen.freeze)
 
-    # The forming bar's *close* is its last traded price, which a prior bar can
-    # legitimately share, so including it would make this test fail at random. Only
-    # the two extremes are informative, and a real leak almost always shows up there
-    # — the whole range of a forming bar is by definition price the market has not
-    # finished printing.
-    leaked = _prices_in(result, digits) & {
+    # Only a price that occurs on the forming bar **and nowhere on any closed
+    # bar** is evidence of a leak. This is the second version of this check, and
+    # the first was wrong twice over.
+    #
+    # Version one searched the serialised result for the forming high as a
+    # *substring*, so a forming high of 1.13640 matched 1.13645 -- a closed bar's
+    # low. Version two compared numerically, which fixed that, and then fired on a
+    # live run because the forming bar's high of 1.13654 was *also* the high of a
+    # closed bar. Both were false positives; the test was wrong, not the adapter.
+    #
+    # The property that actually holds is about prices the market has not finished
+    # printing, so the comparison is against the closed bars' own values and a
+    # genuine leak -- a forming extreme that no closed bar shares -- still fails.
+    closed = {round(b.high, digits) for b in frozen.series} | {
+        round(b.low, digits) for b in frozen.series
+    }
+    forming_only = {
         round(forming["high"], digits),
         round(forming["low"], digits),
-    }
-    assert not leaked, f"prices from the forming bar reached the result: {sorted(leaked)}"
+    } - closed
+
+    if not forming_only:
+        pytest.skip(
+            "the forming bar's extremes are all shared with a closed bar, so this "
+            "run cannot distinguish a leak; retry when they differ"
+        )
+
+    leaked = _prices_in(result, digits) & forming_only
+    assert not leaked, f"prices unique to the forming bar reached the result: {sorted(leaked)}"
     assert result.last_closed == len(frozen.series) - 1
 
 
