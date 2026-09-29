@@ -203,6 +203,47 @@ class CaseResult:
         }
 
 
+def _resolve_sidecar(vectors_dir: Path, name: str) -> Path | CaseResult:
+    """The sidecar path, or a refusal if `name` escapes the vectors directory.
+
+    ## Why this is not paranoia
+
+    `mql5_vector` is a string inside a case file, and joining it to a directory
+    without checking where it lands is a path traversal. The input is a
+    repository-tracked file, so this is not remotely exploitable — but the
+    consequence is worse than an arbitrary read, and that is the reason it is fixed
+    here rather than noted.
+
+    The harness exists to answer "did a **real MQL5 run** agree with Python?". A
+    case file that names a vector living anywhere else on disk lets a file that
+    was never produced by an MQL5 build be compared, and a matching one would
+    report `MATCH`. The refusal the runner already makes for a `producer` that is
+    not `mql5` is exactly this threat; a traversal sidesteps it by supplying a
+    file that *does* say `"producer": "mql5"`.
+
+    A hostile case file is a hostile **commit**, and a pull request is a
+    perfectly ordinary place for one to arrive. So the harness should not depend
+    on every contributor having read this.
+
+    The check is `Path.is_relative_to` on the resolved paths, so a symlink
+    pointing out of the directory is refused too — resolving first is what makes
+    that true.
+    """
+    root = vectors_dir.resolve()
+    candidate = (vectors_dir / name).resolve()
+    if not candidate.is_relative_to(root):
+        return CaseResult(
+            case_id=Path(name).name,
+            status=CASE_ERROR,
+            note=(
+                f"mql5_vector {name!r} resolves outside {root}; a sidecar must be a "
+                f"file in the vectors directory, and a vector from anywhere else "
+                f"would defeat the producer check the harness relies on"
+            ),
+        )
+    return candidate
+
+
 def run_case(case: ParityCase, vectors_dir: Path = VECTORS_DIR) -> CaseResult:
     """Run one case on both sides, or explain why it could not be run."""
     try:
@@ -217,7 +258,9 @@ def run_case(case: ParityCase, vectors_dir: Path = VECTORS_DIR) -> CaseResult:
             note="no MQL5 sidecar named; nothing was compared",
         )
 
-    path = vectors_dir / case.mql5_vector
+    path = _resolve_sidecar(vectors_dir, case.mql5_vector)
+    if isinstance(path, CaseResult):
+        return path
     if not path.is_file():
         return CaseResult(
             case.id, MQL5_ABSENT, note=f"{case.mql5_vector} is not in {vectors_dir.name}/"

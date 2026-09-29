@@ -987,6 +987,55 @@ been statistically validated, and no performance claim is made.
 - `evaluation.compare()` is still for display only. The decision engine is the one
   sanctioned ranking, and nothing downstream may treat the two as the same thing.
 
+### Security
+- **A path traversal in the parity harness — the one real finding — is fixed.**
+  `run_case()` joined `vectors_dir / case.mql5_vector` and read whatever came out,
+  so a case file could name any path on disk. Verified before the fix rather than
+  assumed: `../../../README.md` and `../../../pyproject.toml` were both read and
+  parsed.
+  - **An arbitrary read is the ordinary consequence, and it is not the one that
+    mattered.** The harness exists to answer *"did a real MQL5 run agree with
+    Python?"*, and it already refuses any vector whose `producer` is not `mql5`. A
+    path traversal hands the comparator a file that **does** say
+    `"producer": "mql5"` and was never produced by an MQL5 build — sidestepping
+    the exact refusal the harness was built around. A hostile case file is a
+    hostile **commit**, and a pull request is an entirely ordinary place for one
+    to arrive, so the harness must not depend on every contributor having read
+    that paragraph.
+  - **The fix resolves the path, then compares.** `_resolve_sidecar()` requires
+    `Path.is_relative_to(vectors_dir.resolve())`. Resolving *before* comparing is
+    what makes a symlink pointing out of the directory fail too, which a string
+    check on `..` components would miss.
+  - In-directory names are unaffected, and a test says so. A security fix that
+    broke the feature it protects would not be a fix.
+- **Five properties the review found clean are now asserted rather than described.**
+  `tests/unit/test_security_review.py` — 12 tests, over the *source text* rather
+  than over mocks, because a mock proves only that one test did not call a
+  function, whereas a source scan proves nothing in the package can:
+  - no order or position API is reachable from `src/`, which is what
+    `ROADMAP.md`'s "places no orders" claim actually rests on;
+  - `MT5Feed.connect()` takes a `login` and **no password**, on purpose — the
+    terminal stores credentials encrypted and a `password=` parameter would put
+    them in this process's memory, its argument vector, and any stack trace. An
+    absence nobody checks is one a well-meaning feature request adds back;
+  - the core never imports the terminal bindings;
+  - the package declares **zero** runtime dependencies, which is a supply-chain
+    property and therefore a number worth asserting rather than a preference;
+  - the live MT5 suite — which runs against a **real broker account** — touches
+    only `copy_rates_from_pos`, `symbol_info_tick` and `terminal_info`.
+- **`SECURITY.md` now records the review, including the finding left open.** CI
+  actions are pinned to a major-version tag (`actions/checkout@v4`) rather than a
+  commit SHA, so a moved tag would run in the workflow. It is recorded rather
+  than fixed because SHA pinning is a real maintenance cost, and the risk profile
+  here does not obviously justify it — a decision a reviewer can overturn by
+  changing three lines. `SECURITY.md` also no longer describes the MT5 adapter as
+  *planned*; it is written, and what it reads is now stated accurately.
+- **One test skips, and says why.** The symlink case needs
+  `SeCreateSymbolicLinkPrivilege` on Windows. The property still holds without it
+  — the check resolves before comparing, and the `..` tests exercise that same
+  path on every platform — but a guard that has never run is not a guard, so the
+  skip states its own limitation rather than passing quietly.
+
 ## [0.1.0] — 2026-09-27
 
 Initial development series, Phases 0-10. Every phase below is a **partial**
