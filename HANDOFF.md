@@ -32,18 +32,49 @@ and 8 live-terminal checks pass when `ALBROOKS_MT5_PATH` is set.
 
 ## What to do next, in order
 
-1. **Phase 21 on a machine with MetaEditor.** `docs/PYTHON_MQL5_PARITY.md` §8 has
-   the ordered list. Expect the first run to **fail** — a port's ATR seed, swing
-   tie-break, series direction and null convention are four easy places to diverge,
-   which is why each is in scope. Record the disagreements rather than tuning them
-   away. **Never hand-write a `"producer": "mql5"` sidecar**; it would turn the
-   Phase 20 harness into a decoration.
-2. **Phase 23.** Documentation only. `test_project_status.py` already checks that
-   both READMEs and every algorithm document are claimed by a manifest and say the
-   same thing, so the Persian documents have to move with the English ones.
-3. **Phase 21 or a validation phase**, whichever you have the tooling for. Nothing
-   in this project has been checked against outcomes, and that is the largest gap,
-   not the phase count.
+1. **Phase 21, the MQL5 port itself.** `docs/PYTHON_MQL5_PARITY.md` §8 has the
+   ordered list, and `docs/algorithms/MQL5_BUILD_LOOP.md` has the compile/run loop,
+   which is **verified working** — see "What Phase 21 delivered" below. The port is
+   **unwritten, not blocked**. Expect the first run to **fail**: a port's ATR seed,
+   swing tie-break, series direction and null convention are four easy places to
+   diverge, which is why each is in scope. Record the disagreements rather than
+   tuning them away. **Never hand-write a `"producer": "mql5"` sidecar**; it would
+   turn the Phase 20 harness into a decoration.
+2. **Then validation.** Nothing in this project has been checked against outcomes,
+   and that is the largest gap — larger than the phase count.
+
+(Phase 23 is **done**, and Phase 22 is **done**; an earlier revision of this list
+still listed Phase 23 as pending, which is the kind of staleness this project
+otherwise tries hard to avoid. Corrected here.)
+
+## An environment gotcha that will cost you twenty minutes if you do not know it
+
+`git push` fails with `Host key verification failed`, and the fix is **not** to
+relax host key checking. The recorded GitHub host key is correct and was verified
+against the server's presented fingerprint — they match exactly, so this is a
+*lookup* failure, not a security problem.
+
+The cause is that **`HOME` is empty in this shell**, so `ssh` cannot find
+`~/.ssh/`, and the `Host github.com` block in `~/.ssh/config` gives
+`UserKnownHostsFile` and `IdentityFile` as **backslash** paths that Windows
+`OpenSSH` does not parse. Set both explicitly, with forward slashes:
+
+```powershell
+$git="C:\Users\bagheri\AppData\Local\Programs\Git\cmd\git.exe"
+$env:GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=C:/Users/bagheri/.ssh/known_hosts -o IdentitiesOnly=yes -i C:/Users/bagheri/.ssh/id_ed25519"
+& $git push origin main
+Remove-Item Env:\GIT_SSH_COMMAND
+```
+
+Two dead ends, recorded so they are not re-tried:
+
+- **Git's bundled `ssh`** (`...\Git\usr\bin\ssh.exe`) has **no** `known_hosts` at
+  all, so pointing `GIT_SSH_COMMAND` at it fails host verification. Use the
+  Windows one already on `PATH`.
+- **Setting `HOME` alone is not enough.** It still fails, because the backslash
+  paths in `~/.ssh/config` are the other half of the problem.
+
+The key itself is fine: `ssh -T git@github.com` returns "Hi ybagheri!".
 
 ## The thing to know second: the fake was wrong and a real terminal said so
 
