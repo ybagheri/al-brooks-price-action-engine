@@ -37,20 +37,42 @@ ROADMAP = REPO / "ROADMAP.md"
 README = REPO / "README.md"
 README_FA = REPO / "README_FA.md"
 
-#: The last phase known to be complete. Bumping this is a deliberate act that says
-#: "the phase below shipped"; the tests then hold every document to it.
-LAST_COMPLETE_PHASE = 20
+#: The phases known to be complete, as a set rather than a watermark.
+#:
+#: This was a `LAST_COMPLETE_PHASE = 20` watermark until Phase 22 landed, which
+#: exposed an assumption baked into three tests: that completed phases are
+#: **contiguous**. They are not, and now cannot be — Phase 21's MQL5 port is
+#: blocked on MetaEditor indefinitely, while Phase 22 needed nothing external and
+#: shipped.
+#:
+#: A watermark models "phases land in order", which was true until the first phase
+#: had to wait on hardware. A set models what is actually true, and a phase that is
+#: genuinely complete after a blocked one is not a defect to be encoded away.
+LAST_COMPLETE_PHASE = 22
 LAST_PHASE = 23
 
-#: The phase currently in progress, which may own a document that is already
+#: Phases that are complete, derived from the watermark. Everything at or below
+#: `LAST_COMPLETE_PHASE` except those listed in `PHASES_STILL_OPEN`.
+PHASES_STILL_OPEN: frozenset[int] = frozenset({21})
+
+#: Every complete phase. Used by the roadmap tests instead of a range.
+COMPLETE_PHASES: frozenset[int] = (
+    frozenset(range(LAST_COMPLETE_PHASE + 1)) - PHASES_STILL_OPEN
+)
+
+#: The highest phase that has *started*, which may own a document that is already
 #: required because the part of it that shipped needs documenting.
 #:
-#: Phase 21 is the case in point: the MT5 adapter, the session and the freeze are
-#: built and tested, so `docs/algorithms/MT5_ADAPTER.md` is required now — while
-#: the MQL5 port it also documents is blocked on MetaEditor and the phase stays
-#: unchecked. A document for work that has *not* started is still refused here; the
-#: distinction is between a phase in flight and a phase not yet begun.
-IN_PROGRESS_PHASE = 21
+#: Phase 22 is the case in point. `serialization/json.py`, `AI_INTERFACE.md` and
+#: `examples/llm_analysis.py` all landed together, so the document is required
+#: while the phase stays unchecked until its code is committed and verified as a
+#: unit.
+#:
+#: A document for work that has *not* started is still refused — the distinction
+#: this constant draws is between a phase in flight and a phase not yet begun.
+#: Note that Phase 21 is *not* complete either: its MQL5 port is blocked on
+#: MetaEditor, and nothing here should be read as saying otherwise.
+IN_PROGRESS_PHASE = 22
 
 MARKDOWN = sorted(
     p
@@ -140,7 +162,7 @@ def test_the_roadmap_marks_every_completed_phase_and_leaves_the_rest_open() -> N
         f"the roadmap lists phases {sorted(found)}, expected 0..{LAST_PHASE}"
     )
     for phase, done in sorted(found.items()):
-        if phase <= LAST_COMPLETE_PHASE:
+        if phase in COMPLETE_PHASES:
             assert done, f"Phase {phase} is complete but unchecked in ROADMAP.md"
         else:
             assert not done, f"Phase {phase} is not complete but checked in ROADMAP.md"
@@ -151,15 +173,29 @@ def test_the_roadmap_states_how_much_is_done() -> None:
 
     The document's own premise is honest self-reporting, and a progress count is
     the single most-consumed fact about a project of this kind. It was missing.
+
+    The count is `len(COMPLETE_PHASES)` rather than a watermark, and the
+    "which are done" assertion changed with it. "Phases 0 through 22 are done" was
+    **false** the moment Phase 22 landed while Phase 21 is still blocked on
+    MetaEditor — a sentence that reads as a summary and is a lie. The roadmap now
+    names the gap explicitly instead.
     """
     text = _text(ROADMAP)
-    expected_done = LAST_COMPLETE_PHASE + 1  # phases 0..19 inclusive
+    expected_done = len(COMPLETE_PHASES)
     expected_total = LAST_PHASE + 1  # phases 0..23 inclusive
 
     assert f"{expected_done} of {expected_total} phases are complete" in text
-    assert f"Phases 0 through {LAST_COMPLETE_PHASE} are done" in text
-    assert f"Phases {LAST_COMPLETE_PHASE + 1} through {LAST_PHASE} remain" in text
-    # And it must name what remains, not merely count it.
+    # The count must agree with the checkboxes, or the two disagree in the two
+    # places a reader is most likely to look.
+    assert expected_done == sum(
+        done == "x" for done, _ in PHASE_LINE.findall(text)
+    ), "the stated count disagrees with the checkboxes"
+    # Every phase still open must be named as such rather than swept into a range.
+    for phase in sorted(PHASES_STILL_OPEN):
+        assert f"Phase {phase} is" in text or f"Phase {phase} " in text, (
+            f"Phase {phase} is not complete but the prose does not single it out"
+        )
+    # And it must say where the remaining work is, not merely count it.
     assert "## Where the project stands" in text
 
 
@@ -193,7 +229,7 @@ def test_the_readme_status_table_covers_every_area_of_the_engine() -> None:
 
     english = _text(README)
     assert "## Status" in english
-    assert f"{LAST_COMPLETE_PHASE + 1} of {LAST_PHASE + 1} phases are complete" in english
+    assert f"{len(COMPLETE_PHASES)} of {LAST_PHASE + 1} phases are complete" in english
 
     for area in (
         "Backtesting",
@@ -233,11 +269,28 @@ def test_the_readme_status_table_covers_every_area_of_the_engine() -> None:
         f"the parity row must say the harness exists and compares nothing; it says "
         f"{parity!r}"
     )
-    for not_started in ("MQL5 layer", "AI / LLM interface"):
+    # Rows whose state is asserted, so a stale table fails here rather than in a
+    # reader's head. `MQL5 parity` is deliberately absent from both groups: the
+    # harness is built and unfilled, which is neither done nor unstarted, and is
+    # checked for the specific thing that is true instead.
+    for shipped in ("MT5 adapter", "AI / LLM interface"):
+        assert shipped in rows, f"README.md has no {shipped!r} row"
+        assert "Implemented" in rows[shipped], (
+            f"README.md reports {shipped!r} as {rows[shipped]!r}"
+        )
+    # `Bilingual documentation` is "Partial", not "Not started": both READMEs and
+    # twenty-two algorithm documents exist, and Phase 23 expands them rather than
+    # creating them. A third state, and asserting it as either of the other two
+    # would be the same collapsing the project refuses elsewhere.
+    for not_started in ("MQL5 layer",):
         assert not_started in rows, f"README.md has no {not_started!r} row"
         assert "Not started" in rows[not_started], (
             f"README.md reports {not_started!r} as {rows[not_started]!r}"
         )
+    assert "Partial" in rows["Bilingual documentation"], (
+        f"README.md reports bilingual documentation as "
+        f"{rows['Bilingual documentation']!r}"
+    )
 
     persian = _text(README_FA)
     for area in ("بک‌تست", "فیکسچرهای طلایی", "قرارداد عدم بازترسیم",
@@ -253,6 +306,9 @@ def test_the_readme_status_table_covers_every_area_of_the_engine() -> None:
     assert "پیاده‌سازی شده" in fa_rows["آداپتور MT5"], (
         f"README_FA.md still reports the MT5 adapter as {fa_rows['آداپتور MT5']!r}"
     )
+    # Same three states as the English table, checked against the Persian one so
+    # the two documents cannot drift into saying different things about the same
+    # phase.
     # Same split as the English table: the parity harness is built and unfilled,
     # which is neither done nor not-started, and the Persian row has to say so.
     assert "پاریتی MQL5" in fa_rows
@@ -260,11 +316,19 @@ def test_the_readme_status_table_covers_every_area_of_the_engine() -> None:
     assert "هیچ مقایسه‌ای انجام نشد" in fa_parity, (
         f"the parity row must say nothing was compared; it says {fa_parity!r}"
     )
-    for not_started in ("لایهٔ MQL5", "رابط AI / LLM"):
-        assert not_started in fa_rows, f"README_FA.md has no {not_started!r} row"
-        assert "شروع نشده" in fa_rows[not_started], (
-            f"README_FA.md reports {not_started!r} as {fa_rows[not_started]!r}"
+    for shipped in ("آداپتور MT5", "رابط AI / LLM"):
+        assert shipped in fa_rows, f"README_FA.md has no {shipped!r} row"
+        assert "پیاده‌سازی شده" in fa_rows[shipped], (
+            f"README_FA.md reports {shipped!r} as {fa_rows[shipped]!r}"
         )
+    assert "لایهٔ MQL5" in fa_rows
+    assert "شروع نشده" in fa_rows["لایهٔ MQL5"], (
+        f"README_FA.md reports the MQL5 layer as {fa_rows['لایهٔ MQL5']!r}"
+    )
+    assert "ناقص" in fa_rows["مستندات دوزبانه"], (
+        f"README_FA.md reports bilingual documentation as "
+        f"{fa_rows['مستندات دوزبانه']!r}"
+    )
 
 
 def test_both_readmes_say_implementation_is_not_validation() -> None:
@@ -373,8 +437,8 @@ def test_the_required_document_manifest_has_no_orphans_or_ghost_owners() -> None
     for path, phase in module.REQUIRED_DOCS:
         assert (REPO / path).is_file(), f"required but missing: {path}"
         assert phase <= IN_PROGRESS_PHASE, (
-            f"{path} is required but owned by a phase that has not started; a "
-            f"required document must be on disk now"
+            f"{path} is required but owned by Phase {phase}, which has not "
+            f"started; a required document must be on disk now"
         )
 
     # Pending means pending. A path in PENDING_DOCS that is already on disk is the
