@@ -14,10 +14,16 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v4
+    # Third-party actions are pinned to a full commit SHA, not to a version tag.
+    # A tag is a mutable pointer: `v4` can be moved to a different commit later,
+    # and a compromised action repository could publish a new one that this
+    # workflow would then run with no visible change in the diff. A SHA names
+    # one commit and cannot be repointed, so the version is kept in a comment
+    # for the next person who needs to bump it.
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -53,8 +59,10 @@ jobs:
     # fails if it is still here once the first real sidecar lands.
     # `tests/unit/test_phase21_adapter.py::test_no_mql5_sidecar_exists_and_the_parity_run_still_says_unverified`
     # asserts the other direction: that the state has not silently changed.
-    # Phase 21's adapter, freeze and session shipped; the MQL5 port is blocked on
-    # MetaEditor, so the flag stays until that is done.
+    # Phase 21's adapter, freeze and session shipped; the MQL5 port is unwritten,
+    # so the flag stays until that is done. The MetaEditor toolchain is verified
+    # working (docs/algorithms/MQL5_BUILD_LOOP.md) — the port is not blocked on
+    # tooling, it simply has not been written.
     - name: Run the Python / MQL5 parity harness
       run: |
         python -m tests.parity.runner --allow-unverified

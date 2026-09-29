@@ -65,7 +65,7 @@ were actually checked.
 | 4 | The core never imports the terminal bindings. | — | Confirmed, now asserted |
 | 5 | No credentials, keys or tokens anywhere in the repository. | — | Confirmed by scan |
 | 6 | The live MT5 suite runs against a real broker account. | — | Confirmed read-only, now asserted |
-| 7 | CI actions are pinned to a **major-version tag** (`actions/checkout@v4`) rather than a commit SHA. | **Low** | **Open** — see below |
+| 7 | CI actions were pinned to a **major-version tag** (`actions/checkout@v4`) rather than a commit SHA. | **Low** | **Fixed** |
 
 ### Why finding 1 mattered more than an arbitrary read
 
@@ -82,16 +82,24 @@ harness that can be talked into a false `MATCH` by one has lost the property it
 exists to provide. The fix resolves the path and requires it to be inside the
 vectors directory, which also covers a symlink pointing out of it.
 
-### Finding 7, and why it is left open
+### Finding 7, and the trade-off worth naming
 
-Pinning a third-party action to a tag rather than a commit SHA means trusting that
-the tag is never moved. A compromised action repository could publish a new `v4`
-and this workflow would run it. SHA pinning removes that trust.
+A version tag is a mutable pointer, so a compromised action repository could
+republish `v4` at a different commit and the workflow would run the new code with
+no visible change in the diff — the file would still read `@v4`. Both actions are
+now pinned to a full commit SHA, with the version kept in a trailing comment
+because a SHA is otherwise unreadable.
 
-It is left as recorded rather than fixed because the trade-off is a real
-maintenance cost — every action bump becomes a two-step — and this repository's
-risk profile does not obviously justify it. A reviewer who disagrees can change
-three lines.
+The cost is real: every action upgrade becomes a two-step change. The reason it is
+worth paying here is not that CI is critical, but that **a comment can silently go
+stale** while a SHA cannot — so a test checks the two still agree, and a test
+checks every action in every workflow is pinned at all.
+
+The pin test deliberately checks the *shape* of the ref and not which commit was
+chosen. A test that asserted the specific SHA would fail on every legitimate
+upgrade, and a test that has to be disabled when it is inconvenient is worse than
+no test. Which commit is right stays a human decision; that the ref is immutable
+does not.
 
 ## Not a security boundary
 

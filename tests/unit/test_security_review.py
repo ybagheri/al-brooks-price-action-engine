@@ -228,6 +228,96 @@ def test_the_core_never_imports_the_terminal_bindings() -> None:
 
 
 # --------------------------------------------------------------------------
+# Finding 7 -- CI actions were pinned to a mutable tag. FIXED.
+# --------------------------------------------------------------------------
+
+WORKFLOWS = REPO / ".github" / "workflows"
+# A `uses:` ref that is a bare tag or branch rather than a full 40-char SHA.
+_MUTABLE_REF = re.compile(r"uses:\s*([^\s@]+)@(?![0-9a-f]{40}(?:\s|$))([^\s#]+)")
+
+
+@pytest.mark.parametrize("workflow", sorted(p.name for p in WORKFLOWS.glob("*.y*ml")))
+def test_every_workflow_action_is_pinned_to_a_commit_sha(workflow: str) -> None:
+    """No third-party action may be referenced by a mutable tag or branch.
+
+    ## What the finding was
+
+    The workflows used `actions/checkout@v4` and `actions/setup-python@v5`. A
+    version tag is a mutable pointer, so a compromised action repository could
+    republish `v4` at a different commit and this workflow would run the new code
+    with no visible change in the file — the diff still reads `@v4`.
+
+    A full commit SHA names exactly one commit and cannot be repointed, so the
+    version goes in a trailing comment for whoever needs to bump it.
+
+    The expected SHA is deliberately **not** asserted. This checks the *form* of
+    the ref, not which commit was chosen; a test that pinned the SHA would fail
+    on every legitimate action upgrade, and a test that gets disabled when it is
+    inconvenient is worse than no test. Pinning the shape means the security
+    property holds continuously while the choice of commit stays a human
+    decision.
+    """
+    text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
+    offenders = [
+        f"{m.group(1)}@{m.group(2)}" for m in _MUTABLE_REF.finditer(text)
+    ]
+    # `uses: ./local/action` is a path, not a remote ref, and cannot drift.
+    offenders = [o for o in offenders if not o.startswith(".")]
+    assert not offenders, (
+        f"{workflow} references actions by a mutable ref {offenders}; pin to a "
+        f"full 40-character commit SHA and keep the version in a comment"
+    )
+
+
+def test_the_pinned_shas_are_the_versions_the_comment_claims() -> None:
+    """A SHA and its version comment must not drift apart.
+
+    A SHA is unreadable, so the version lives in a comment. That makes the pair
+    the only description of what CI runs, and a stale comment is worse than none:
+    it tells the next person to bump to a version that is not what is actually
+    executing. This checks every `sha # vX.Y.Z` pair is internally consistent in
+    shape, and that the SHA really is the commit that release names.
+
+    The network lookup is skipped when offline, and says so, because a test that
+    silently degrades to a no-op is the failure mode this file exists to avoid.
+    """
+    import re as _re
+    import urllib.error
+    import urllib.request
+
+    pattern = _re.compile(
+        r"uses:\s*(\S+?)@([0-9a-f]{40})\s*#\s*v(\d+\.\d+\.\d+)"
+    )
+    pairs = []
+    for workflow in sorted(WORKFLOWS.glob("*.y*ml")):
+        for m in pattern.finditer(workflow.read_text(encoding="utf-8")):
+            pairs.append((m.group(1), m.group(2), m.group(3)))
+    assert pairs, "expected at least one pinned action with a version comment"
+
+    for repo, sha, version in pairs:
+        url = f"https://api.github.com/repos/{repo}/git/ref/tags/v{version}"
+        try:
+            with urllib.request.urlopen(url, timeout=15) as resp:  # noqa: S310
+                import json
+
+                data = json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, OSError) as exc:
+            pytest.skip(f"GitHub unreachable, cannot verify the pin ({exc})")
+        resolved = data["object"]["sha"]
+        if data["object"]["type"] == "tag":  # annotated tag points at another
+            with urllib.request.urlopen(  # noqa: S310
+                f"https://api.github.com/repos/{repo}/git/tags/{resolved}", timeout=15
+            ) as resp:
+                import json
+
+                resolved = json.loads(resp.read().decode("utf-8"))["object"]["sha"]
+        assert resolved == sha, (
+            f"{repo}: comment says v{version} but the SHA {sha} is not that "
+            f"release (it is {resolved})"
+        )
+
+
+# --------------------------------------------------------------------------
 # Finding 3 -- the runtime dependency surface is empty.
 # --------------------------------------------------------------------------
 

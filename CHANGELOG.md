@@ -988,6 +988,28 @@ been statistically validated, and no performance claim is made.
   sanctioned ranking, and nothing downstream may treat the two as the same thing.
 
 ### Security
+- **CI actions are now pinned to full commit SHAs** — `actions/checkout@11d5960a`
+  (v4.4.0) and `actions/setup-python@a26af69b` (v5.6.0), each resolved from the
+  GitHub API and verified against the release tag before being written down.
+  A version tag is a mutable pointer: a compromised action repository could
+  republish `v4` at a different commit and this workflow would run the new code
+  with **no visible change in the diff**, because the file would still read `@v4`.
+- **The pin is enforced, not just applied.** A test rejects any `uses:` ref that
+  is not a 40-character SHA, across every workflow. It checks the *shape* of the
+  ref and not which commit was chosen — a test asserting the specific SHA would
+  fail on every legitimate upgrade, and a test that has to be disabled when it is
+  inconvenient is worse than no test. Which commit is right stays a human
+  decision; that the ref is immutable does not.
+- **A SHA and its version comment are checked against each other.** The version
+  lives in a comment because a SHA is unreadable, which makes the pair the only
+  description of what CI runs — and a *stale* comment is worse than none, because
+  it tells the next person to bump to a version that is not what executes. The
+  test resolves the comment's version through the GitHub API and compares it to
+  the SHA. It skips with a stated reason when offline rather than degrading
+  quietly to a no-op.
+- **The pin test was verified to fail when the pin is removed.** Reverting
+  `ci.yml` to `@v4` during review made it fail with the offending ref named, then
+  restoring the SHA made it pass. A guard that cannot fail is a comment.
 - **A path traversal in the parity harness — the one real finding — is fixed.**
   `run_case()` joined `vectors_dir / case.mql5_vector` and read whatever came out,
   so a case file could name any path on disk. Verified before the fix rather than
@@ -1023,13 +1045,9 @@ been statistically validated, and no performance claim is made.
     property and therefore a number worth asserting rather than a preference;
   - the live MT5 suite — which runs against a **real broker account** — touches
     only `copy_rates_from_pos`, `symbol_info_tick` and `terminal_info`.
-- **`SECURITY.md` now records the review, including the finding left open.** CI
-  actions are pinned to a major-version tag (`actions/checkout@v4`) rather than a
-  commit SHA, so a moved tag would run in the workflow. It is recorded rather
-  than fixed because SHA pinning is a real maintenance cost, and the risk profile
-  here does not obviously justify it — a decision a reviewer can overturn by
-  changing three lines. `SECURITY.md` also no longer describes the MT5 adapter as
-  *planned*; it is written, and what it reads is now stated accurately.
+- **`SECURITY.md` now records the review in full**, and no longer describes the
+  MT5 adapter as *planned* — it is written, and what it reads is now stated
+  accurately. All seven findings are closed; none is left open.
 - **One test skips, and says why.** The symlink case needs
   `SeCreateSymbolicLinkPrivilege` on Windows. The property still holds without it
   — the check resolves before comparing, and the `..` tests exercise that same
