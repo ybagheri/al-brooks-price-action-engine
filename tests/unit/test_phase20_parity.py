@@ -39,6 +39,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +92,7 @@ from tests.parity.runner import (
     ParityReport,
     load_case,
     load_cases,
+    partial_gate,
     run,
     run_case,
 )
@@ -99,6 +102,7 @@ DOC = REPO / "docs" / "PYTHON_MQL5_PARITY.md"
 CI = REPO / ".github" / "workflows" / "ci.yml"
 
 CASES = load_cases()
+CASES_BY_ID = {c.id: c for c in CASES}
 
 
 # --------------------------------------------------------------------------
@@ -362,7 +366,7 @@ def test_a_boolean_never_passes_as_an_integer() -> None:
 
 def test_a_field_the_other_side_omitted_is_a_difference_not_a_skip() -> None:
     """The property that stops a three-field implementation passing a
-    thirty-three-field contract."""
+    thirty-two-field contract."""
     case = CASES[0]
     other = _vector(case)
     del other["decision"]["reason"]
@@ -464,7 +468,7 @@ def test_a_sidecar_from_another_schema_is_refused(tmp_path: Path) -> None:
 
 def test_a_sidecar_covering_less_than_the_scope_is_refused(tmp_path: Path) -> None:
     """The refusal that matters: a port which implemented three fields must not be
-    able to report agreement with a thirty-three-field contract."""
+    able to report agreement with a thirty-two-field contract."""
     case = CASES[0]
     path = tmp_path / "thin.json"
     payload = _sidecar(case, scope=["atr", "decision"])
@@ -574,17 +578,31 @@ def test_a_broken_case_is_contained_rather_than_raising(tmp_path: Path) -> None:
 
 
 def test_the_shipped_state_claims_no_parity() -> None:
-    """The assertion that keeps Phase 20 from being read as Phase 21.
+    """Parity is still **not** established, and this now has to be argued for.
 
-    No MQL5 build exists, so nothing was compared, and the report says exactly
-    that rather than reporting a pass over an empty comparison.
+    ## What changed
+
+    This used to be `assert report.status == UNVERIFIED` — nothing had ever been
+    compared, so there was no verdict to argue about. That is no longer true: a
+    real MQL5 build has produced a real sidecar for `parity_range_breakout_001`,
+    and the run is `FAILED`, not `UNVERIFIED`.
+
+    ## Why the distinction is the whole point
+
+    A harness that reports `AGREED` without having compared enough is worse than
+    one that reports nothing, so the status here is asserted rather than assumed
+    -- and it is asserted to be `FAILED`. If someone completes the port, this
+    test **fails**, which is the intended alarm: parity being established is a
+    claim that has to be made in the docs, in the same change, not discovered by
+    a green build.
     """
     report = run()
-    assert report.status == UNVERIFIED
+    assert report.status == FAILED, (
+        f"parity status is {report.status}; if the port is now complete the docs "
+        f"must be updated in this same change to say so"
+    )
     assert report.claims_parity is False
-    assert report.compared == ()
-    assert report.counts()[MQL5_ABSENT] == len(CASES)
-    assert "nothing about parity has been established" in report.claim_text
+    assert "Parity is not established" in report.claim_text
 
 
 def test_agreement_needs_every_case_to_have_been_compared(tmp_path: Path) -> None:
@@ -654,32 +672,77 @@ def test_the_report_serialises_with_its_verdict_attached() -> None:
     consumer cannot read the case list and miss the verdict."""
     payload = run().to_dict()
     assert payload["schema"] == SCHEMA_VERSION
-    assert payload["status"] == UNVERIFIED
+    assert payload["status"] == FAILED
     assert payload["claims_parity"] is False
-    assert payload["compared_cases"] == 0
+    assert payload["compared_cases"] == 1
     assert set(payload["counts"]) >= {MQL5_ABSENT, MISMATCH, "MATCH"}
 
 
-def test_the_unverified_scaffold_stays_in_step_with_ci() -> None:
-    """`--allow-unverified` exists for exactly one period: while the shipped state
-    is `UNVERIFIED`.
+def test_the_ci_flag_matches_the_shipped_state() -> None:
+    """The shipped state is `FAILED`, so CI may only soften it via `--allow-partial`.
 
-    Phase 21 removes both the flag and the CI use of it. A test that checked only
-    that the flag works would let CI keep passing over an unverified claim after
-    the real build landed, so the two are linked in both directions.
+    `--allow-unverified` covers the `UNVERIFIED` state and nothing else. The
+    port is compared-and-disagreeing now, so CI uses `--allow-partial`, which
+    suppresses a disagreement **only** outside the groups the sidecar declares as
+    ported. Linking the two in both directions is the point: a test that only
+    checked the flag works would let CI keep passing over a real disagreement.
+
+    When the port completes and the status becomes `AGREED`, this fails and
+    `--allow-partial` has to come out of CI in the same change.
     """
     ci_text = CI.read_text(encoding="utf-8")
-    flag_in_ci = "--allow-unverified" in ci_text
-    state_is_unverified = run().status == UNVERIFIED
+    status = run().status
+    assert status == FAILED, f"this test's premise is a FAILED state, not {status}"
 
-    assert flag_in_ci == state_is_unverified, (
-        "CI's --allow-unverified and the shipped parity state disagree: "
-        f"ci={flag_in_ci}, unverified={state_is_unverified}"
+    # Look for the flag as an *invocation*, not as a mention. A prose reference
+    # in a comment explaining what the flag replaced is documentation, and
+    # refusing it would mean the workflow cannot explain its own history.
+    invokes_partial = bool(re.search(r"^\s*python -m tests\.parity\.runner .*--allow-partial",
+                                     ci_text, re.MULTILINE))
+    invokes_unverified = bool(re.search(r"^\s*python -m tests\.parity\.runner .*--allow-unverified",
+                                        ci_text, re.MULTILINE))
+
+    assert invokes_partial, (
+        "the shipped state is FAILED, so CI needs --allow-partial; if parity is now "
+        "established, remove the flag instead and update this test"
     )
-    if flag_in_ci:
-        result = _main(["--allow-unverified"])
-        assert result == 0
-        assert _main([]) == 2, "without the flag, an unverified run must not exit 0"
+    assert not invokes_unverified, (
+        "--allow-unverified covers only UNVERIFIED, which is no longer the state; "
+        "leaving it would be a flag that quietly does nothing"
+    )
+    assert _main([]) == EXIT_FAILED, "without any flag a FAILED run must not exit 0"
+    assert _main(["--allow-partial"]) == EXIT_AGREED, (
+        "with --allow-partial the honest partial state must exit 0"
+    )
+
+
+def test_allow_partial_does_not_suppress_a_regression() -> None:
+    """The gate's value is entirely in what it *refuses* to suppress.
+
+    Perturbing `atr` -- a group the shipped sidecar declares as ported -- must
+    make `--allow-partial` exit 1. Without this the flag would be a blanket
+    suppression wearing a precise name, and a genuine break in the port would be
+    reported as "still in progress".
+    """
+    shipped = VECTORS_DIR / "parity_range_breakout_001.mql5.json"
+    payload = json.loads(shipped.read_text(encoding="utf-8"))
+    assert "atr" in payload["ported"], "the gate only works if atr is declared ported"
+
+    broken = json.loads(json.dumps(payload))
+    broken["vector"]["atr"] = broken["vector"]["atr"] * 1.01
+
+    tmp = VECTORS_DIR.with_name("mql5_gate_probe")
+    tmp.mkdir(exist_ok=True)
+    try:
+        (tmp / shipped.name).write_text(dump(broken), encoding="utf-8")
+        report = ParityReport((run_case(CASES_BY_ID["parity_range_breakout_001"], tmp),))
+        may_suppress, _, regressions = partial_gate(report)
+        assert not may_suppress
+        assert "atr" in regressions
+    finally:
+        (tmp / shipped.name).unlink(missing_ok=True)
+        if not any(tmp.iterdir()):
+            tmp.rmdir()
 
 
 def _main(argv: list[str]) -> int:
@@ -754,16 +817,82 @@ def test_the_committed_cases_are_the_ones_the_runner_will_find() -> None:
     assert on_disk == {case.id for case in CASES}
 
 
-def test_the_mql5_directory_exists_and_is_empty() -> None:
-    """Phase 21 writes the first sidecar here, and until it does the directory is
-    part of the claim: it exists, it is documented, and it holds nothing.
+def test_the_mql5_directory_holds_exactly_the_sidecars_this_project_produced() -> None:
+    """The directory is no longer empty, and what is in it is now a claim.
 
-    Asserted against `VECTORS_DIR` rather than a path built by hand, because a
-    `glob` over a directory that does not exist returns an empty list and would
-    have passed the same assertion vacuously.
+    Phase 20 asserted it was empty. That was a real assertion then — an empty
+    directory cannot pretend to be evidence — and it had to change the moment a
+    real build produced a real file. What replaces it is stronger than the
+    emptiness check in the way that matters:
+
+    - the sidecar must be the one this repository's build produced, named for a
+      case that exists and declares `producer: mql5`;
+    - every case must either name a sidecar that exists or have none, so a case
+      cannot quietly point at a missing vector;
+    - and the count is pinned, so landing a second sidecar is a deliberate act
+      that has to update this test.
+
+    A hand-written file is still refused by the runner, which checks `producer`
+    and the path; the thing a test adds is making the *inventory* explicit.
     """
     assert VECTORS_DIR.is_dir(), "the MQL5 sidecar directory is missing"
     assert (VECTORS_DIR / "README.md").is_file()
-    assert list(VECTORS_DIR.glob("*.json")) == [], "an MQL5 sidecar exists"
+
+    present = sorted(p.name for p in VECTORS_DIR.glob("*.json"))
+    assert present == ["parity_range_breakout_001.mql5.json"], (
+        f"the sidecar inventory changed to {present}; update this test and the "
+        f"docs in the same change, because each new sidecar is a new claim"
+    )
+
     for case in CASES:
-        assert case.mql5_vector is None, f"{case.id} names a sidecar that does not exist"
+        if case.mql5_vector is None:
+            continue
+        assert (VECTORS_DIR / case.mql5_vector).is_file(), (
+            f"{case.id} names {case.mql5_vector}, which does not exist"
+        )
+
+    for name in present:
+        case_id = name.removesuffix(".mql5.json")
+        assert case_id in CASES_BY_ID, f"{name} is not a parity case"
+        payload = json.loads((VECTORS_DIR / name).read_text(encoding="utf-8"))
+        assert payload["producer"] == PRODUCER_MQL5, f"{name} is not an MQL5 build's work"
+        assert payload["case_id"] == case_id, f"{name} names the wrong case"
+
+
+def test_the_field_count_is_pinned_so_the_docs_cannot_say_thirty_three() -> None:
+    """The contract is 32 leaves. Four places said 33, and nothing noticed.
+
+    ## What the finding was
+
+    `FIELD_CLASSES` has 32 entries. `ROADMAP.md` and `MT5_ADAPTER.md` both called
+    it a "33-field canonical vector", and two test docstrings in this file said
+    "thirty-three-field contract". Nothing caught it, because no test asserted the
+    count — the docs and the code were free to disagree indefinitely, which is
+    the exact drift this project treats as its main failure mode.
+
+    ## Why it mattered rather than being a typo
+
+    A port author reads the field count before writing 32 field emissions into a
+    second language. "33" is not a harmless rounding of a true number; it is
+    wrong, and it is wrong in the direction that makes a reader look for a field
+    that does not exist. The code is the contract, so `FIELD_CLASSES` is
+    authoritative and the prose has to follow it.
+
+    Pinning the count also means the composition is pinned: the per-class tally
+    below changes if a field's class is reassigned, and that matters because the
+    class decides how it is compared.
+    """
+    assert len(FIELD_CLASSES) == 32, (
+        f"the contract now has {len(FIELD_CLASSES)} leaves, not 32; the count is "
+        f"quoted in ROADMAP.md, MT5_ADAPTER.md and this file's docstrings, so "
+        f"either fix the docs or say so in the changelog"
+    )
+    tally = Counter(FIELD_CLASSES.values())
+    assert tally == {
+        "EXACT_INT": 12,
+        "EXACT_CODE": 8,
+        "NUMBER": 7,
+        "EXACT_BOOL": 4,
+        "CODE_OR_NULL": 1,
+    }, f"the contract's class composition changed: {dict(tally)}"
+    assert sum(tally.values()) == len(FIELD_CLASSES)

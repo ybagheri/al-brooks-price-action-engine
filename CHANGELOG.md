@@ -987,8 +987,87 @@ been statistically validated, and no performance claim is made.
 - `evaluation.compare()` is still for display only. The decision engine is the one
   sanctioned ranking, and nothing downstream may treat the two as the same thing.
 
-### Security
-- **CI actions are now pinned to full commit SHAs** — `actions/checkout@11d5960a`
+### Added
+- **The MQL5 port has produced its first real sidecar, and it agrees with Python on
+  every group it covers.** `mql5/Include/AlBrooks/Core.mqh` ports ATR and swing
+  detection from `price_action/bars.py` and `core/swings.py`;
+  `mql5/Experts/AlBrooks/ParityExporter.mq5` reads a case's own bars, runs the port
+  and writes `tests/parity/mql5/parity_range_breakout_001.mql5.json`.
+  - **The result: `atr`, `swings`, `bars_processed` and `last_closed_bar` agree at a
+    worst relative deviation of `0.0`** — not merely inside the `1e-9` tolerance, but
+    exactly. `atr` is `1.1592862572260927` on both sides, and all three swings match
+    on `bar_index`, `confirmed_bar_index`, `price` and `direction`.
+  - **`parity_range_breakout_001` was chosen first deliberately.** It has the fewest
+    detectors, and it is the only case that makes the swing tie-break load-bearing,
+    because its range puts equal highs inside every five-bar window. A port agreeing
+    here has reproduced the forward-only earliest-wins rule rather than getting lucky
+    on a trending series.
+  - **`market_state`, `setups`, `trade_plans` and `decision` are not ported**, so the
+    run reports `FAILED`, and it is supposed to. The first run was not clean, the
+    disagreements are recorded rather than tuned away, and parity is **not**
+    established.
+  - `scripts/build_mql5.py` scripts the whole compile → deploy → stage → run →
+    read-back loop. **It has no path that copies the Python reference into place and
+    no flag that would make one appear.**
+
+### Changed
+- **A sidecar now declares the groups it actually implemented** (`"ported"`), and CI
+  uses `--allow-partial` instead of `--allow-unverified`.
+  - The old flag covered `UNVERIFIED`, meaning *nothing was compared at all*. The
+    state is `FAILED` now — *something was compared and it disagreed* — and
+    `--allow-unverified` would have done nothing while appearing to. CI would have
+    been red for a reason no flag explained.
+  - `--allow-partial` suppresses a disagreement **only** outside the declared
+    `ported` groups. A disagreement *inside* a declared group is a regression and
+    still fails. A sidecar with no `ported` key is treated as claiming nothing, so
+    deleting the key is not a way to switch the gate off. The asymmetry is the point:
+    a declaration is checked, the absence of one is not an excuse.
+  - **This makes an unfinished port distinguishable from a broken one**, which is the
+    only reason a partial port can be committed at all. Without it the options are a
+    permanently red CI or shipping no sidecar, and the second throws away the real
+    evidence.
+- **Ten status claims across six documents were made false by one build.** `ROADMAP.md`,
+  `HANDOFF.md`, `PYTHON_MQL5_PARITY.md`, `MT5_ADAPTER.md` and both parity READMEs now
+  describe the compared-and-disagreeing state.
+- **The parity contract is 32 leaves, and four places said 33.** `FIELD_CLASSES` was
+  always the authority; `ROADMAP.md`, `MT5_ADAPTER.md` and two docstrings disagreed
+  with it and nothing noticed, because no test asserted the count. It does now, along
+  with the per-class composition — which matters, because the class decides how a
+  field is compared.
+
+### Fixed
+- **The MQL5 agent's own `MQL5/Files` is wiped on every startup**, so an input staged
+  there before a run is gone by the time `OnInit` reads it, and the EA correctly
+  reports it "cannot read" a file that is demonstrably on disk. Measured, not assumed:
+  the EA printed `TERMINAL_DATA_PATH`, and the staged files were gone afterwards. The
+  exchange now uses `FILE_COMMON`, which is shared and is not wiped.
+- **MetaEditor will not compile into a portable tree**, so the `.ex5` is produced in
+  the data folder while `/portable` makes the terminal look in the program folder. The
+  tester reported `ParityExporter.ex5 not found` — which reads like a build failure
+  and is a missing copy.
+- **The agent sandbox is not at a fixed port.** `MQL5_BUILD_LOOP.md` records
+  `Agent-127.0.0.1-3001`; this run produced `-3000`, which is why the path is resolved
+  rather than written down.
+- **`FileReadString` consumes the newline and does not return it**, so concatenating
+  the lines of a pretty-printed JSON file silently deleted every line break in it.
+  The result still looked like JSON and parsed as nothing.
+- **The parity JSON reader's object and array parsers never advanced past their
+  opening delimiter**, so every multi-line JSON document failed to parse. Found by
+  reading the agent's own journal rather than by inspecting the code.
+- **Path traversal in the parity harness.** A case file's `mql5_vector` was joined to
+  a directory and read without checking where it landed, so a case could name any
+  path on disk. Verified before the fix: `../../../README.md` and
+  `../../../pyproject.toml` were both read and parsed.
+  - **An arbitrary read is the ordinary consequence, and it is not the one that
+    mattered.** The harness already refuses any vector whose `producer` is not
+    `mql5`. A path traversal hands the comparator a file that **does** say
+    `"producer": "mql5"` and was never produced by an MQL5 build — sidestepping the
+    exact refusal the harness was built around. A hostile case file is a hostile
+    **commit**, and a pull request is an entirely ordinary place for one to arrive.
+  - The fix resolves the path and requires it to be inside the vectors directory,
+    which also covers a symlink pointing out of it. In-directory names are
+    unaffected, and a test says so.
+- **CI actions are pinned to full commit SHAs** — `actions/checkout@11d5960a`
   (v4.4.0) and `actions/setup-python@a26af69b` (v5.6.0), each resolved from the
   GitHub API and verified against the release tag before being written down.
   A version tag is a mutable pointer: a compromised action repository could

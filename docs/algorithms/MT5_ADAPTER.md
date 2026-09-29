@@ -177,8 +177,11 @@ look-ahead that *looks like a correct answer*. A caller who knows the period pas
 
 ## 5. What is NOT here, and why
 
-**`mql5/Include/AlBrooks/` does not exist.** No MQL5 build of this engine has been
-written.
+**`mql5/Include/AlBrooks/` exists but is incomplete.** `Core.mqh` ports ATR and
+swing detection; the market-state classifier, the eleven detectors, the trade-plan
+geometry and the decision engine are not ported. A real build produces a real
+sidecar for `parity_range_breakout_001`, and it agrees on the four groups it covers
+with a worst relative deviation of `0.0`.
 
 > **Correction, Phase 23 follow-up.** This section previously said the port was
 > **"blocked on MetaEditor and a terminal"**. That was **wrong, and it was never
@@ -202,14 +205,19 @@ written.
 > substance.
 
 An MQL5 port of this scope — eleven detectors, the market-state classifier, the
-trade-plan geometry and the decision engine, all reproducing a 33-field canonical
-vector — has simply not been written.
+trade-plan geometry and the decision engine, all reproducing a 32-field canonical
+vector — is **half written**. `atr` and `swings` are ported and agree exactly;
+the rest is not, and the run reports `FAILED` rather than rounding that up.
 
 So the consequences are stated rather than hidden:
 
-- **`tests/parity/mql5/` is still empty.** All three cases name no sidecar.
-- **A parity run still reports `UNVERIFIED`** — a status distinct from both a pass
-  and a failure, because nothing was compared.
+- **`tests/parity/mql5/` holds one sidecar**, produced by a real build, for
+  `parity_range_breakout_001` only. The other two cases still name no sidecar.
+- **A parity run reports `FAILED`** — one case compared and disagreeing. That is
+  distinct from `UNVERIFIED` (nothing compared at all) and from agreement.
+- **The MQL5 side owes the freeze and the port does it.** `FreezeClosedBars()`
+  decides by time on the server clock, and the EA asserts the count it kept equals
+  the count it read, so a silent truncation cannot hide behind `bars_processed`.
 - **`--allow-unverified` is still in `.github/workflows/ci.yml`**, and
   `tests/unit/test_phase20_parity.py` still asserts the flag and the shipped state
   stay in step.
@@ -410,7 +418,9 @@ adapter sends no orders and neither do these.
 
 - **Nothing about parity.** A working adapter on the Python side is not a second
   implementation. §7 stands.
-- **Nothing about the MQL5 port.** `mql5/` is still empty.
+- **Nothing about the MQL5 port.** `mql5/` now holds a partial implementation, and a
+  partial port is not a second implementation. §5 says which four groups agree and
+  which four have not been written.
 - **Nothing about the readings.** The live suite asserts that a result was
   produced, not that it is any good. `VALIDATION.md` §9 is unchanged.
 - **Nothing about other brokers.** Alpari EURUSD M15 is one venue and one symbol.

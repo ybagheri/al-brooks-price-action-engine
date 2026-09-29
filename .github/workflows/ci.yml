@@ -52,20 +52,26 @@ jobs:
       run: |
         python scripts/check_docs_present.py
 
-    # Parity currently reports UNVERIFIED: no MQL5 build exists, so nothing has
-    # been compared and there is no parity claim to keep honest. The flag exists
-    # for exactly that period, and
-    # `tests/unit/test_phase20_parity.py::test_the_unverified_scaffold_stays_in_step_with_ci`
-    # fails if it is still here once the first real sidecar lands.
-    # `tests/unit/test_phase21_adapter.py::test_no_mql5_sidecar_exists_and_the_parity_run_still_says_unverified`
-    # asserts the other direction: that the state has not silently changed.
-    # Phase 21's adapter, freeze and session shipped; the MQL5 port is unwritten,
-    # so the flag stays until that is done. The MetaEditor toolchain is verified
-    # working (docs/algorithms/MQL5_BUILD_LOOP.md) — the port is not blocked on
-    # tooling, it simply has not been written.
+    # The MQL5 port is partial, so the shipped state is FAILED: one real sidecar
+    # exists and disagrees on the groups the port has not written yet.
+    #
+    # `--allow-partial` suppresses exactly that and nothing else. A disagreement
+    # inside a group the sidecar declares as `ported` is a regression and still
+    # fails the build; a sidecar with no `ported` declaration is treated as
+    # claiming nothing, so deleting the key is not a way to switch this off.
+    #
+    # It replaces `--allow-unverified`, which covered the previous state where
+    # nothing had been compared at all. Both were scaffolding for a phase that
+    # had not produced a build; this one is scaffolding for a port that is half
+    # written, which is a different thing and is checked differently.
+    #
+    # `tests/unit/test_phase20_parity.py::test_the_ci_flag_matches_the_shipped_state`
+    # links this flag to the shipped state in both directions, so parity becoming
+    # established -- or this port regressing -- fails the suite rather than
+    # needing to be noticed.
     - name: Run the Python / MQL5 parity harness
       run: |
-        python -m tests.parity.runner --allow-unverified
+        python -m tests.parity.runner --allow-partial
 
     - name: Verify package builds
       run: |

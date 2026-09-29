@@ -1218,33 +1218,63 @@ def test_no_reachable_order_of_calls_produces_a_decision_for_a_forming_bar() -> 
 # --------------------------------------------------------------------------
 
 
-def test_no_mql5_sidecar_exists_and_the_parity_run_still_says_unverified() -> None:
-    """The claim this phase must not make quietly.
+def test_the_partial_mql5_port_agrees_exactly_where_it_claims_to() -> None:
+    """The claim this phase must not make quietly, restated now that it applies.
 
-    Phase 21's other half — an MQL5 port of the engine — needs MetaEditor and a
-    terminal to be written *and validated*. Neither is available here, so
-    `tests/parity/mql5/` is still empty and the harness still reports
-    `UNVERIFIED`. This test is what makes that state a fact rather than a hope: it
-    fails the moment a sidecar lands, so the documentation has to be updated in the
-    same change that fills the harness.
+    ## What changed
+
+    This test used to assert the directory was empty and the run reported
+    `UNVERIFIED`, and it `skip`ped the moment a sidecar appeared — which is
+    exactly when a guard is worth least. It now checks the real state.
+
+    ## Why this is the right thing to assert
+
+    A partial port that says nothing about its own extent is unfalsifiable: a
+    reader cannot tell an unfinished port from a broken one. So the sidecar
+    declares the groups it implements, and this test asserts two things that
+    together are the whole claim:
+
+    - every group it declares is **exactly** right — worst relative deviation
+      `0.0`, not merely inside the `1e-9` tolerance;
+    - the groups it does not declare really are the ones that disagree, so a
+      sidecar cannot under-declare its own scope to hide a real difference.
+
+    The second is the one that matters. A sidecar claiming only `atr` and
+    disagreeing on `swings` would pass a naive "declared groups agree" test while
+    hiding the whole swing implementation.
     """
-    from tests.parity.runner import UNVERIFIED, load_cases, run
+    from tests.parity.compare import compare
+    from tests.parity.contract import load_sidecar
+    from tests.parity.runner import load_cases
 
-    cases = load_cases()
-    sidecars = list((REPO / "tests" / "parity" / "mql5").glob("*.mql5.json"))
+    sidecars = sorted((REPO / "tests" / "parity" / "mql5").glob("*.mql5.json"))
+    assert sidecars, "the first MQL5 sidecar should exist by now"
 
-    if sidecars:
-        pytest.skip(
-            "an MQL5 sidecar now exists; the parity status has changed and the "
-            "Phase 21 documentation must be updated in this change"
+    cases = {c.id: c for c in load_cases()}
+    for path in sidecars:
+        case_id = path.name.removesuffix(".mql5.json")
+        assert case_id in cases, f"{path.name} is not a parity case"
+
+        payload = load_sidecar(path, case_id=case_id)
+        declared = payload.get("ported")
+        assert declared, f"{path.name} declares nothing, so it cannot be checked"
+
+        result = compare(cases[case_id].vector(), payload["vector"])
+        disagreeing = {d.path.split(".")[0].split("[")[0] for d in result.differences}
+        disagreeing = {
+            g[:-6] if g.endswith("_count") else g for g in disagreeing
+        }
+
+        for group in declared:
+            assert group not in disagreeing, (
+                f"{path.name} declares {group!r} as ported but disagrees on it"
+            )
+        # Under-declaring would let a real difference hide outside the declared
+        # set, which is the loophole this assertion exists to close.
+        assert not (disagreeing - {"market_state", "setups", "trade_plans", "decision"}), (
+            f"{path.name} disagrees on groups outside the known-unported set: "
+            f"{sorted(disagreeing - {'market_state', 'setups', 'trade_plans', 'decision'})}"
         )
-
-    report = run(cases)
-    assert report.status == UNVERIFIED
-    assert report.claims_parity is False
-    assert not (REPO / "mql5").exists(), (
-        "an mql5/ tree exists; if it is not a validated port, say so in the docs"
-    )
 
 
 def test_the_adapter_documentation_exists_and_names_what_is_missing() -> None:

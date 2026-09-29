@@ -22,8 +22,10 @@ not establish general equivalence, it says nothing about inputs the case set doe
 not contain, and — like everything else in this project — it says nothing about
 whether any of this works. A parity result is an agreement about code.
 
-There is no MQL5 build in this repository. Every number a reader might want here
-is therefore the number zero.
+There is now **one** MQL5 build in this repository, covering four of the eight
+groups. It is compared against `parity_range_breakout_001`, it agrees on those four
+groups exactly, and it disagrees on the other four because they are not ported yet.
+Parity is not established, and the run says `FAILED` rather than `UNVERIFIED`.
 
 ## 2. Why the harness shipped before the implementation
 
@@ -268,12 +270,13 @@ established. No MQL5 sidecar has been supplied.
 
 ## 8. What Phase 21 has to do
 
-**Status: partially done.** Items 2 and the adapter half of item 1 shipped with
-`src/albrooks/adapters/mt5/`; the MQL5 build itself did not, because writing an
-MQL5 port of this scope had not been written when this line was first
-terminal, neither of which was available. So **zero of three cases have been
-compared and §7 below is still the current state.** `docs/algorithms/MT5_ADAPTER.md`
-§5 has the same list from the adapter's side.
+**Status: partly done, and now measurable.** Items 2 and the adapter half of item 1
+shipped with `src/albrooks/adapters/mt5/`. Item 1's port half has since started:
+`mql5/Include/AlBrooks/Core.mqh` implements ATR and swing detection, and
+`ParityExporter.mq5` writes a real sidecar. **One of three cases is compared, and
+it disagrees on the four unported groups.** The build loop is scripted in
+`scripts/build_mql5.py`, and `docs/algorithms/MQL5_BUILD_LOOP.md` §5 has the same
+list from the adapter's side.
 
 1. Write `mql5/Include/AlBrooks/` implementing `SCOPE`. The port is not free: an
    `ATR` seed, a swing tie-break, a `BarSeries` direction and a null convention

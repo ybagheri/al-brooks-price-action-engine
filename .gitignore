@@ -33,6 +33,14 @@ docs/_build/
 .DS_Store
 Thumbs.db
 
+# MQL5 build output. `scripts/build_mql5.py` compiles into the terminal's data
+# folder and copies the .ex5 to the program folder, so a stray one here means a
+# build was pointed at the repo by mistake. It is a binary derived from the
+# .mq5/.mqh already in the tree, and MetaEditor does not reproduce it byte for
+# byte, so committing it would create a diff nobody can explain.
+*.ex5
+mql5/**/*.log
+
 # MT5 build artefacts
 mql5/**/*.ex5
 mql5/**/*.ex4

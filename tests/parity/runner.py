@@ -191,6 +191,9 @@ class CaseResult:
     max_deviation: float | None = None
     compared: int = 0
     note: str = ""
+    #: Groups the sidecar declares it actually implemented. `None` when no
+    #: sidecar was read, in which case there is no declaration to trust.
+    ported: frozenset[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -198,9 +201,59 @@ class CaseResult:
             "status": self.status,
             "compared_fields": self.compared,
             "max_relative_deviation": self.max_deviation,
+            "ported": None if self.ported is None else sorted(self.ported),
             "note": self.note,
             "differences": [d.to_dict() for d in self.differences],
         }
+
+
+def partial_gate(report: "ParityReport") -> tuple[bool, set[str], set[str]]:
+    """Decide whether a `FAILED` run is an unfinished port or a broken one.
+
+    Returns `(may_suppress, unported_groups, regressions)`.
+
+    A disagreement is *not* a failure if, and only if, it falls in a group the
+    sidecar never claimed to have ported. A disagreement inside a claimed group
+    is a regression -- the port implemented it, and got it wrong -- and is
+    never suppressed. That distinction is the whole point: without it,
+    "incomplete" and "broken" are the same red build, and the only honest
+    options are a permanently failing CI or shipping no sidecar at all. The
+    second throws away the real evidence the port produces.
+
+    `ported is None` -- the sidecar made **no declaration at all** -- is treated
+    as claiming nothing *in a way that can be relied on*, so every disagreement
+    counts as a regression. That is different from declaring an empty list, which
+    is an honest claim of having ported nothing and therefore excuses everything.
+    The asymmetry is deliberate: a declaration is checked, and the absence of one
+    is not an excuse. Otherwise stripping the `ported` key would be a one-line
+    way to switch the gate off.
+    """
+    unported: set[str] = set()
+    regressions: set[str] = set()
+    for result in report.compared:
+        if result.ported is None:
+            for difference in result.differences:
+                regressions.add(_group_of(difference.path))
+            continue
+        for difference in result.differences:
+            group = _group_of(difference.path)
+            (unported if group not in result.ported else regressions).add(group)
+    return not regressions, unported, regressions
+
+
+def _group_of(path: str) -> str:
+    """The `SCOPE` group a difference path belongs to.
+
+    A count leaf is named `<group>_count` and sits at the top level rather than
+    inside its group, so without this a disagreement about how many setups were
+    found would be attributed to a group called `setups_count` -- which no
+    sidecar declares, and so would be silently suppressed as "not yet ported".
+    A missing setup count is exactly the thing that should not slip through.
+    """
+    head = path.split(".")[0].split("[")[0]
+    if head.endswith("_count"):
+        return head[: -len("_count")]
+    return head
 
 
 def _resolve_sidecar(vectors_dir: Path, name: str) -> Path | CaseResult:
@@ -287,6 +340,15 @@ def run_case(case: ParityCase, vectors_dir: Path = VECTORS_DIR) -> CaseResult:
             ),
         )
 
+    # The sidecar's own declaration of what it implemented. Absent or malformed
+    # means it claims nothing, which `partial_gate` treats as the strict case.
+    declared = payload.get("ported")
+    ported: frozenset[str] | None
+    if isinstance(declared, list) and all(isinstance(g, str) for g in declared):
+        ported = frozenset(declared)
+    else:
+        ported = None
+
     try:
         result = compare(payload["vector"], python_vector)
     except VectorError as exc:
@@ -299,6 +361,7 @@ def run_case(case: ParityCase, vectors_dir: Path = VECTORS_DIR) -> CaseResult:
         differences=result.differences,
         max_deviation=result.max_deviation,
         compared=result.compared,
+        ported=ported,
     )
 
 
@@ -470,6 +533,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help=(
+            "exit 0 when every disagreement falls outside the groups the sidecar "
+            "declares as ported. A disagreement inside a declared-ported group is a "
+            "regression and still fails. A sidecar with no 'ported' declaration "
+            "claims nothing, so every disagreement counts against it."
+        ),
+    )
+    parser.add_argument(
         "--write-reference",
         type=Path,
         default=None,
@@ -509,6 +582,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_AGREED
     if report.status == UNVERIFIED:
         return EXIT_UNVERIFIED if not args.allow_unverified else EXIT_AGREED
+    if args.allow_partial:
+        may_suppress, unported, regressions = partial_gate(report)
+        if may_suppress:
+            print()
+            print(
+                f"allow-partial: {sum(len(r.differences) for r in report.compared)} "
+                f"disagreement(s) lie outside the groups the sidecar declares as "
+                f"ported ({', '.join(sorted(unported))}), so this run is not counted "
+                f"as a parity failure. Parity remains unestablished."
+            )
+            return EXIT_AGREED
+        print()
+        print(
+            "allow-partial: a disagreement fell INSIDE a group its sidecar declares "
+            f"as ported ({', '.join(sorted(regressions))}). That is a real regression "
+            "in the port, not an unfinished one, and is not suppressed."
+        )
     return EXIT_FAILED
 
 

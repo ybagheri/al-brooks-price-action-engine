@@ -56,14 +56,18 @@ tested. The MQL5 port is not, and cannot be from where this was written.**
 
 | Phase | What it adds | State |
 |---|---|---|
-| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **unwritten** | The toolchain is verified working end to end; the port itself has not been written, which is what Phase 20 defined the contract for |
+| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **started** | A real MQL5 build now produces a real sidecar. `atr` and `swings` agree with Python at **zero** deviation; `market_state`, `setups`, `trade_plans` and `decision` are not ported yet |
 | **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | **Complete.** Needed a stable serialized contract to hand an agent, and it now has one |
 | **23 — Bilingual Documentation** | `docs/fa/`, and a test that keeps the two trees from drifting | **Complete.** An honest index plus the three documents whose claims a reader could act on |
 
 The port is not a deferral dressed up as a plan, and it is **not blocked**. An MQL5
 implementation of this scope — eleven detectors, the market-state classifier, the
-plan geometry and the decision engine, reproducing a 33-field canonical vector — has
-simply not been written. The toolchain to write it with is verified working:
+plan geometry and the decision engine, reproducing a 32-field canonical vector — is
+**partly written**: `Core.mqh` ports ATR and swing detection, and the resulting
+sidecar agrees with Python on `atr`, `swings`, `bars_processed` and
+`last_closed_bar` with a worst relative deviation of **0.0**. The other four
+groups are not ported, and the harness says so rather than passing over them. The
+toolchain to write it with is verified working:
 MetaEditor compiles, the Strategy Tester runs headlessly, and an EA's output is
 readable from Python. `MT5_ADAPTER.md` §5 has the loop.
 
@@ -89,7 +93,9 @@ documented rather than an oversight.
 
 **The same is true of parity, and it is worth saying in the same breath.** Phase
 20 built the harness that will prove an MQL5 port agrees with this one, and
-**zero cases have been compared** because no MQL5 build exists. The harness is
+**one of three cases has been compared, and it disagrees** — because the port
+covers four of the eight groups and the other four are not written yet. The run
+reports `FAILED`, not `UNVERIFIED`, and not `AGREED`. The harness is
 built to be unable to report agreement it has not earned — see *Deliberately Not
 Built* below — and `docs/PYTHON_MQL5_PARITY.md` §7 says so in the document a
 reader of that phase will open first.
@@ -890,9 +896,10 @@ and `VALIDATION.md` §9 is where one would have to start.
 
 ### `mql5/` does not exist, and that is a statement about the hardware
 
-There is no MQL5 port of this engine in the repository. `tests/parity/mql5/` is
-empty, all three cases name no sidecar, and a parity run still reports
-`UNVERIFIED`.
+The MQL5 port is **partly** in the repository. `tests/parity/mql5/` holds one
+sidecar, produced by a real MetaEditor build running in the Strategy Tester from
+`parity_range_breakout_001`'s own bars. It is compared, it disagrees on the four
+unported groups, and a parity run reports `FAILED`. Parity is **not** established.
 
 This is **not** a deferral dressed up as a plan. An MQL5 implementation of this
 scope can only be *validated* by compiling it with MetaEditor and running it

@@ -1,0 +1,41 @@
+{
+  "case_id": "parity_range_breakout_001",
+  "producer": "mql5",
+  "producer_version": "partial: atr+swings",
+  "schema": "albrooks-parity/1",
+  "scope": [
+    "atr",
+    "bars_processed",
+    "decision",
+    "last_closed_bar",
+    "market_state",
+    "setups",
+    "swings",
+    "trade_plans"
+  ],
+  "ported": ["atr", "bars_processed", "last_closed_bar", "swings"],
+  "vector": {
+    "atr": 1.1592862572260927,
+    "bars_processed": 30,
+    "decision": {
+      "action": "WAIT",
+      "direction": 0,
+      "is_actionable": false,
+      "reason": "NOT_PORTED"
+    },
+    "last_closed_bar": 29,
+    "market_state": {
+      "direction": 0,
+      "mode": "NOT_PORTED",
+      "strength": 0.0000000000000000,
+      "valid": false
+    },
+    "setups": [],
+    "swings": [
+      {"bar_index": 7, "confirmed_bar_index": 10, "direction": 1, "price": 101.4000000000000057},
+      {"bar_index": 12, "confirmed_bar_index": 15, "direction": 1, "price": 101.4000000000000057},
+      {"bar_index": 19, "confirmed_bar_index": 22, "direction": -1, "price": 100.0000000000000000}
+    ],
+    "trade_plans": []
+  }
+}

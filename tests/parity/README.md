@@ -4,22 +4,30 @@ The Python / MQL5 parity contract, the case set, and the runner.
 `docs/PYTHON_MQL5_PARITY.md` is the specification and the argument for why the
 harness is built this way; this file is the practical guide.
 
-## Status: the harness ships, unfilled
+## Status: one real sidecar, and it disagrees
 
-**No MQL5 sidecar exists.** `mql5/` is empty, every case names `null`, and a run
-reports `UNVERIFIED` with the claim *"nothing about parity has been established"*.
-That state is asserted twice — by `tests/unit/test_phase20_parity.py` and by
-`tests/unit/test_phase21_adapter.py` — so the day a sidecar appears the suite says
-so rather than going quiet.
+**One of three cases is compared.** `parity_range_breakout_001` has a real
+MQL5-produced sidecar; the other two name none. The compared case **fails**, on
+the four groups the port has not written — `market_state`, `setups`,
+`trade_plans`, `decision`. On the four it has written it agrees with Python at a
+worst relative deviation of `0.0`.
 
-Phase 21 owns the MQL5 build, and it is **blocked**: writing an MQL5 port of this
-scope and *validating* it needs MetaEditor and a live MetaTrader terminal, neither
-of which was available. The half of Phase 21 that needs no terminal — the adapter,
-the forming-bar freeze and the stateful session — shipped; see
-`docs/algorithms/MT5_ADAPTER.md`. The roadmap had the MQL5 build depending on this
-harness and this harness depending on that build, which is a cycle; the way out was
-to make Phase 20 the *contract* and Phase 21 the *fill*, and to say so in the
-documentation rather than shipping a parity claim with nothing behind it.
+So the status is `FAILED`, not `UNVERIFIED` (nothing compared at all) and
+certainly not `AGREED`. That state is asserted by
+`tests/unit/test_phase20_parity.py`, and the assertion **fails** the day parity
+becomes established, so a green build can never quietly mean "a claim nobody
+updated".
+
+The port is partial, so CI passes `--allow-partial`, which suppresses a
+disagreement only *outside* the groups a sidecar declares as `"ported"`. A
+disagreement inside a declared group is a regression and still fails. The
+trade-off is deliberate: without it the only honest options are a permanently red
+CI or shipping no sidecar at all, and the second throws away the real evidence
+this produces.
+
+The roadmap had the MQL5 build depending on this harness and this harness
+depending on that build, which is a cycle; the way out was to make Phase 20 the
+*contract* and Phase 21 the *fill*.
 
 ## Layout
 

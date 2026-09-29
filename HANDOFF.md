@@ -18,13 +18,20 @@ and 8 live-terminal checks pass when `ALBROOKS_MT5_PATH` is set.
   plans, a gated decision, a multi-timeframe veto, backtesting, golden fixtures,
   an MT5 adapter, an LLM-facing serialization, and a Persian documentation tree.
 - **One phase remains, and it is blocked on *writing*, not on tooling.**
-  Phase 21's MQL5 port has not been written. This was previously recorded as
-  "blocked on MetaEditor" — **that was wrong and was never checked.** The
-  toolchain is verified working end to end: MetaEditor compiles, the Strategy
-  Tester runs headlessly, and an EA's output is readable from Python. See
-  `MT5_ADAPTER.md` §5 for the loop. `mql5/` does not exist,
-  `tests/parity/mql5/` is empty, and parity reports `UNVERIFIED` — a status
-  distinct from both a pass and a failure, because nothing was compared.
+  Phase 21's MQL5 port is now **partly written**. This was previously recorded as
+  "blocked on MetaEditor" — **that was wrong and was never checked** — and then as
+  "unwritten", which was true but is no longer. The toolchain is verified working
+  end to end, and `scripts/build_mql5.py` scripts the whole loop:
+
+  ```
+  python scripts/build_mql5.py --case parity_range_breakout_001
+  ```
+
+  A real MetaEditor build now produces a real sidecar, and it **agrees with Python
+  on `atr`, `swings`, `bars_processed` and `last_closed_bar` with a worst
+  relative deviation of `0.0`.** The other four groups — `market_state`, `setups`,
+  `trade_plans`, `decision` — are not ported, so the run reports `FAILED`.
+  Parity is not established, and the harness will not pretend otherwise.
 - **Nothing here is validated.** No number in this project is a probability, a win
   rate or an edge. `docs/algorithms/VALIDATION.md` §9 lists the four missing
   ingredients, the largest of which is a stated null. Any change that makes this
@@ -32,20 +39,67 @@ and 8 live-terminal checks pass when `ALBROOKS_MT5_PATH` is set.
 
 ## What to do next, in order
 
-1. **Phase 21, the MQL5 port itself.** `docs/PYTHON_MQL5_PARITY.md` §8 has the
-   ordered list, and `docs/algorithms/MQL5_BUILD_LOOP.md` has the compile/run loop,
-   which is **verified working** — see "What Phase 21 delivered" below. The port is
-   **unwritten, not blocked**. Expect the first run to **fail**: a port's ATR seed,
-   swing tie-break, series direction and null convention are four easy places to
-   diverge, which is why each is in scope. Record the disagreements rather than
-   tuning them away. **Never hand-write a `"producer": "mql5"` sidecar**; it would
-   turn the Phase 20 harness into a decoration.
-2. **Then validation.** Nothing in this project has been checked against outcomes,
+1. **Phase 21, the four unported groups.** The port is **partly written** and
+   measured. `Core.mqh` covers ATR and swings; `market_state`, `setups`,
+   `trade_plans` and `decision` are not written, and the run honestly reports
+   `FAILED` because of them. The order below is by size, smallest first:
+
+   | Group | What it needs | Source to port |
+   |---|---|---|
+   | `market_state` | the classifier and its four proxy modules, plus `_largest_remainder`. The largest single chunk, and the hardest to hit to 1e-9 because `strength` is a remainder-apportioned percentage of summed raw scores. | `src/albrooks/context/market_state.py` |
+   | `setups` | the eleven detectors, the registry, and the `setup_type` null convention. Watch the null: **MQL5 has no `null`**, and emitting `"NONE"` fails every case. | `src/albrooks/setups/` |
+   | `trade_plans` | plan geometry, both stop bases, and `reward_to_risk`. | `src/albrooks/trade/plan.py` |
+   | `decision` | the gated decision and the vetoes. | `src/albrooks/decision/` |
+
+   The remaining two cases, `parity_trend_001` and `parity_bear_rally_001`, still
+   name no sidecar. A partly filled case set can never report agreement, so they
+   come after the four groups.
+
+2. **Each new group, in this order.** Add it to the port → add its name to
+   `AB_PORTED_GROUPS` in `Parity.mqh` → rebuild →
+   `python -m tests.parity.runner --allow-partial`. **Removing a name from
+   `ported` is the regression tripwire**: a disagreement there fails CI even with
+   the flag. Do not remove a group from `ported` in order to make a run pass.
+
+3. **The moment the last case matches**, `report.status` becomes `AGREED` and
+   `test_the_shipped_state_claims_no_parity` **fails on purpose**. That failure is
+   the signal: remove `--allow-partial` from `.github/workflows/ci.yml`, update
+   `test_the_ci_flag_matches_the_shipped_state`, and say so in the docs in the same
+   change. Do not paper over it.
+
+4. **Then validation.** Nothing in this project has been checked against outcomes,
    and that is the largest gap — larger than the phase count.
 
-(Phase 23 is **done**, and Phase 22 is **done**; an earlier revision of this list
-still listed Phase 23 as pending, which is the kind of staleness this project
-otherwise tries hard to avoid. Corrected here.)
+(Phases 22 and 23 are **done**; an earlier revision of this list still listed
+Phase 23 as pending, which is the kind of staleness this project otherwise tries
+hard to avoid. Corrected here.)
+
+## Rebuilding the sidecar
+
+```bat
+python scripts/build_mql5.py --case parity_range_breakout_001
+python -m tests.parity.runner --allow-partial
+```
+
+**Use the script.** Three of the five traps it encodes are not obvious and each
+reads as something else: the agent wipes its own `MQL5/Files` on every startup, so
+inputs go through `FILE_COMMON`; MetaEditor cannot compile into a portable tree,
+so the `.ex5` is compiled in the data folder and copied to the program folder; and
+the agent port number is not stable (`-3000` here, where the doc recorded `-3001`).
+
+**Never hand-write a sidecar**, and never add a flag to the build script that
+copies the Python reference into place. The script has no such path on purpose.
+
+## Two conventions that will surprise you in the port
+
+- **`ported` is checked, its absence is not.** A sidecar with no `ported` key is
+  treated as claiming nothing, so *every* disagreement counts against it. That is
+  deliberate and slightly counter-intuitive: it means you cannot make a failing run
+  pass by deleting a key.
+- **A count leaf is named `<group>_count` and lives at the top level**, not inside
+  its group, so `setups_count` would otherwise be attributed to a group no sidecar
+  declares — and silently suppressed as "not yet ported". `partial_gate` maps it
+  back, and there is a test saying why.
 
 ## An environment gotcha that will cost you twenty minutes if you do not know it
 
