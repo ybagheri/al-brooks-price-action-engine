@@ -1,0 +1,54 @@
+# Line endings are normalized in the repository, not in the working tree.
+#
+# ## Why this file exists
+#
+# It was added in Phase 21, and the reason is worth recording because the symptom
+# is very misleading.
+#
+# This repository was checked out on Windows with no `core.autocrlf` set and no
+# `.gitattributes` present. Git therefore stored **LF** in every blob and left
+# **CRLF** in the working tree — which is fine — but on a *later* checkout the
+# working tree came back CRLF while the index still compared against LF. The
+# result was `git status` reporting **58 modified files and ~19,000 changed
+# lines** when exactly **13 files** had been edited.
+#
+# 45 of those files were pure line-ending noise. A reviewer looking at that diff
+# sees a rewrite of the whole test suite. Worse, a contributor running
+# `git checkout .` to clean up would **discard the real edits** along with it,
+# because git cannot tell the two apart.
+#
+# That is the property that makes this file necessary rather than tidy: without
+# it, an unrelated mistake destroys uncommitted work.
+#
+# ## What it guarantees
+#
+# `text=auto eol=lf` — text files are stored with LF in the repository and
+# checked out with LF on every platform, including Windows. Editors and tools
+# handle display line endings themselves; the bytes on disk stay consistent,
+# which is what makes a diff readable and a bisect meaningful.
+#
+# Binary files are declared explicitly rather than left to `text=auto`'s
+# detection. Git's heuristic is right almost always, and being wrong about it
+# silently corrupts a file, so the types this project can plausibly gain are
+# named. Add to this list rather than relying on the guess.
+
+* text=auto eol=lf
+
+# Binary assets: never text-normalised, never line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.7z binary
+*.ex5 binary
+*.ex4 binary
+
+# MQL5 sources and the parity JSON are text like any other, but named explicitly
+# because Phase 21 introduces them and a reviewer should not have to reason
+# about it.
+*.mqh text eol=lf
+*.mq5 text eol=lf
