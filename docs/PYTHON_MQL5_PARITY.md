@@ -22,10 +22,16 @@ not establish general equivalence, it says nothing about inputs the case set doe
 not contain, and — like everything else in this project — it says nothing about
 whether any of this works. A parity result is an agreement about code.
 
-There is now **one** MQL5 build in this repository, covering four of the eight
-groups. It is compared against `parity_range_breakout_001`, it agrees on those four
-groups exactly, and it disagrees on the other four because they are not ported yet.
-Parity is not established, and the run says `FAILED` rather than `UNVERIFIED`.
+There are now **three** MQL5 sidecars in this repository, one per case, and the
+run reports `AGREED`: all three cases were compared, every declared leaf agreed,
+and the **worst relative deviation is `0.0`** — not merely inside the `1e-9`
+tolerance, but exactly zero, on every `NUMBER` leaf.
+
+Read that claim at the size it actually has. It is agreement about code, over
+three hand-drawn charts and one declared scope. It is not a proof that the two
+implementations are equivalent, it says nothing about inputs the case set does
+not contain, and it says nothing whatsoever about whether any of this works on a
+market. Nothing in this project has been validated against outcomes.
 
 ## 2. Why the harness shipped before the implementation
 
@@ -237,55 +243,59 @@ so a partially filled run is `FAILED`, not `AGREED`.
 
 `UNVERIFIED` is a separate exit code (2) from `FAILED` (1) for the `RPC-18`
 reason: a CI job that fails because the second implementation has not been built
-yet trains people to ignore the job that matters. CI passes
-`--allow-unverified` for exactly this period, and
-`tests/unit/test_phase20_parity.py` asserts that the flag and its use in
-`.github/workflows/ci.yml` stay in step, so neither can be removed without the
-other.
+yet trains people to ignore the job that matters. That is why the softening flags
+existed at all, and why each was removed the moment its state stopped applying:
+`--allow-unverified` covered the `UNVERIFIED` state, and `--allow-partial` covered
+the `FAILED`-on-an-unported-group state. **CI now runs with no flag**, because the
+shipped state is `AGREED` and there is nothing left to soften —
+`AB_PORTED_GROUPS` names every group in `SCOPE`, so there is no group a
+disagreement could land outside of.
+
+`tests/unit/test_phase20_parity.py` asserts the absence of the flags and their
+absence from `.github/workflows/ci.yml` stay in step, **and** that an unflagged
+run over a perturbed sidecar still exits non-zero. A flag that does nothing is
+worse than no flag, because a reader assumes it is load-bearing — and removing the
+flags is only safe while something else is still able to fail the job.
 
 The report carries its own `caveats`, following `BACKTESTING.md`'s precedent that a
-report cannot leave without them.
+report cannot leave without them. They are asserted to still be there on an
+`AGREED` run, for the same reason: a green build must not be able to quietly stop
+carrying the limits of its own claim.
 
 ## 7. Status
 
-**Zero MQL5 sidecars exist. Zero cases have been compared.**
-**No parity claim is made anywhere in this project.**
-
-Phase 21 delivered the Python-side adapter, the freeze and a stateful session
-(`docs/algorithms/MT5_ADAPTER.md`), and **none of that changes this section.** An
-adapter that reads bars correctly on this side is not a second implementation, and
-the harness compares implementations.
-
-A run today:
+**3 MQL5 sidecars exist, one per case, each produced by a real MQL5 build.**
+**All 3 cases have been compared, and all 3 matched.**
 
 ```text
 $ python -m tests.parity.runner
-parity_bear_rally_001: MQL5_ABSENT
-parity_range_breakout_001: MQL5_ABSENT
-parity_trend_001: MQL5_ABSENT
+parity_bear_rally_001: MATCH (worst relative deviation 0.000e+00)
+parity_range_breakout_001: MATCH (worst relative deviation 0.000e+00)
+parity_trend_001: MATCH (worst relative deviation 0.000e+00)
 
-status: UNVERIFIED -- No case was compared, so nothing about parity has been
-established. No MQL5 sidecar has been supplied.
+status: AGREED -- All 3 case(s) agreed on every declared field. This is
+agreement on the supplied cases, not a general proof of equivalence.
 ```
 
-## 8. What Phase 21 has to do
+**No claim about the market is made anywhere in this project.** An `AGREED` parity
+run is an agreement between two implementations of the same code. It says nothing
+about whether that code works, and nothing here has been validated against
+outcomes.
 
-**Status: partly done, and now measurable.** Items 2 and the adapter half of item 1
-shipped with `src/albrooks/adapters/mt5/`. Item 1's port half has since started:
-`mql5/Include/AlBrooks/Core.mqh` implements ATR and swing detection, and
-`ParityExporter.mq5` writes a real sidecar. **One of three cases is compared, and
-it disagrees on the four unported groups.** The build loop is scripted in
-`scripts/build_mql5.py`, and `docs/algorithms/MQL5_BUILD_LOOP.md` §5 has the same
-list from the adapter's side.
+## 8. What Phase 21 had to do, and what it did
 
-1. Write `mql5/Include/AlBrooks/` implementing `SCOPE`. The port is not free: an
-   `ATR` seed, a swing tie-break, a `BarSeries` direction and a null convention
-   are the four places a port most easily diverges, and each is in scope for
-   exactly that reason. Two of the four are now *half*-addressed on the Python
-   side — `to_oldest_first()` refuses a mis-ordered payload rather than sorting it,
-   and the ATR seed is Wilder's — and **neither is a parity result**: an MQL5 side
-   still has to reproduce them, and reproducing them is what this harness exists to
-   check.
+**Done.** Items 1 and 2 shipped with `src/albrooks/adapters/mt5/`; the port half
+of item 1 is `mql5/Include/AlBrooks/`, and item 3 is three real sidecars with
+every case's `mql5_vector` set and `--allow-unverified` removed from CI. The
+build loop is scripted in `scripts/build_mql5.py`, and
+`docs/algorithms/MQL5_BUILD_LOOP.md` has the same list from the adapter's side.
+
+1. ~~Write `mql5/Include/AlBrooks/` implementing `SCOPE`.~~ **Done.** The port was
+   not free, and the four places the document predicted a divergence are the four
+   that had to be got right: the ATR seed is Wilder's and backfilled with the
+   seed rather than zero; the swing tie-break is earliest-wins, forward, on the
+   right wing only; the series direction is oldest-first; and `setup_type` emits
+   JSON `null` where MQL5 has no null at all.
 2. Freeze the live series in the adapter. `NON_REPAINT_CONTRACT.md` §4 makes
    freezing the adapter's obligation, not the engine's, and an adapter that passes
    a forming bar produces numbers that will never agree with a Python backtest
@@ -294,14 +304,34 @@ list from the adapter's side.
    (`bar.time + period <= now`, since `Bar.time` is the open time) rather than by
    position, which is wrong at every bar boundary and silently wrong across a
    session break; see `docs/algorithms/MT5_ADAPTER.md` §3. The MQL5 side owes the
-   same obligation.
-3. Write one sidecar per case into `tests/parity/mql5/`, set each case's
-   `mql5_vector`, and remove `--allow-unverified` from CI.
-4. Report the disagreements that appear. A first run will not be clean, and a
-   harness whose first recorded result is a pass should be checked for having
-   compared nothing. **A hand-written `"producer": "mql5"` file would be worse than
-   no MQL5 code at all**, because the harness would then be reporting an agreement
-   it never measured.
+   same obligation, and `ParityExporter.mq5` pays it: it applies the same rule and
+   then *checks* that the count it emits equals the count it read, so a silent
+   truncation cannot defeat the field that exists to catch one.
+3. ~~Write one sidecar per case into `tests/parity/mql5/`, set each case's
+   `mql5_vector`, and remove `--allow-unverified` from CI.~~ **Done.**
+4. ~~Report the disagreements that appear.~~ **Done, and the first one is worth
+   recording**, because it is the argument for the whole harness.
+
+   A port whose first recorded result is a pass should be checked for having
+   compared nothing. This one was checked by starting **partial**: only `atr` and
+   `swings` were declared in `AB_PORTED_GROUPS`, so every run was visibly
+   `FAILED` and the unported groups could be seen disagreeing. Each group was then
+   added one at a time, and the run had to go `MATCH` for that group specifically
+   before the next was started.
+
+   The first real disagreement came from porting `trade_plans`: the MQL5 side
+   reported a `SWING` target where Python reported `ATR_FALLBACK`, on a case whose
+   swings make a perfect target. Passing the real swings "fixed" the number and
+   **broke the port** — because `candidates_from_findings` does not pass `swings`
+   to `build_trade_plan` at all, so the swing fallback is unreachable in the
+   running engine. The fix was to supply an empty list, because that is what the
+   Python side has. Tuning the number until it agreed would have produced a port
+   that computes the right answer for the wrong reason.
+
+   **A hand-written `"producer": "mql5"` file would be worse than no MQL5 code at
+   all**, because the harness would then be reporting an agreement it never
+   measured. `scripts/build_mql5.py` has no path that copies the Python reference
+   and no flag that would make one appear, and that is deliberate.
 
 ## 9. Source
 
@@ -309,6 +339,9 @@ list from the adapter's side.
 `tests/parity/compare.py` — the comparison and its difference vocabulary
 `tests/parity/runner.py` — the case runner, the report and the command line
 `tests/parity/cases/` — the three cases
+`tests/parity/mql5/` — the three sidecars, each from a real MQL5 build
+`mql5/Include/AlBrooks/` — the port itself
+`scripts/build_mql5.py` — the compile, run and read-back loop
 `tests/unit/test_phase20_parity.py` — the suite, including the assertions that
 keep this document honest
 `docs/algorithms/NON_REPAINT_CONTRACT.md` — `RPC-1`, `RPC-14`, `RPC-15`

@@ -36,11 +36,16 @@
 
 #include <AlBrooks\Json.mqh>
 #include <AlBrooks/Core.mqh>
+#include <AlBrooks/MarketState.mqh>
+#include <AlBrooks/Setups.mqh>
+#include <AlBrooks/Plan.mqh>
+#include <AlBrooks/Decision.mqh>
 #include <AlBrooks/Parity.mqh>
 
 #define AB_JOB_FILE   "parity_job.json"
 #define AB_PERIOD_SEC 3600        // H1, matching the case timestamps
 #define AB_ATR_PERIOD 14          // AnalyzerConfig default
+
 
 //+------------------------------------------------------------------+
 //| ReadWholeFile                                                     |
@@ -242,19 +247,143 @@ int OnInit()
                   vec.swings[i].bar_index, vec.swings[i].confirmed_bar_index,
                   vec.swings[i].price, vec.swings[i].direction);
 
-   // Not ported yet. Emitted as declared-and-empty rather than omitted, because
-   // the loader refuses a reduced scope -- and a MISSING field is a
-   // disagreement, so an omitted group could not be distinguished from one the
-   // port forgot. These will read MISMATCH until the engine is ported, which is
-   // the honest state.
-   vec.ms_valid    = 0;
-   vec.ms_mode     = "NOT_PORTED";
-   vec.ms_direction = 0;
-   vec.ms_strength = 0.0;
+    // --- Market state ----------------------------------------------------
+    // `idx` and `last_closed` are the same number here. The Python side calls
+    // `analyze_market_state(series, closed, closed, atr)`: it analyses bar
+    // `closed` and its closed-bar horizon is also `closed`. Passing anything
+    // else is not a subtle difference -- the trend and pressure windows are
+    // anchored on `idx` -- but the two arguments being equal is a property of
+    // the call site, not something the port may assume.
+    ABMarketState ms;
+    AlB_AnalyzeMarketState(bars, usable, last_closed, last_closed, vec.atr, ms);
 
-   // The version names what was ACTUALLY ported. A later reader must be able
-   // to tell a genuine partial result from a file someone edited to agree.
-   const string producer_version = "partial: atr+swings";
+    vec.ms_valid     = ms.valid;
+    vec.ms_mode      = ms.mode;
+    vec.ms_direction = ms.direction;
+    vec.ms_strength  = ms.strength;
+
+    PrintFormat("parity: ms valid=%s mode=%s dir=%d strength=%.17g",
+                (ms.valid ? "true" : "false"), ms.mode, ms.direction, ms.strength);
+    for(int i = 0; i < AB_STATE_COUNT; i++)
+       PrintFormat("   %-14s raw=%.17g pct=%d", AB_STATES[i], ms.raws[i], ms.percentages[i]);
+
+    // --- Setups ----------------------------------------------------------
+    ABLeg legs[];
+    AlB_BuildLegs(vec.swings, ArraySize(vec.swings), legs);
+    PrintFormat("parity: legs=%d", ArraySize(legs));
+
+    ABSetupFinding findings[];
+    const int nfound = AlB_RunRegistry(bars, usable, last_closed, last_closed,
+                                       vec.atr, vec.swings, ArraySize(vec.swings),
+                                       legs, ArraySize(legs), findings);
+    ArrayResize(vec.setups, nfound);
+    for(int i = 0; i < nfound; i++)
+      {
+       vec.setups[i].detector       = findings[i].detector;
+       vec.setups[i].kind           = findings[i].kind;
+       vec.setups[i].setup_family   = AB_FamilyFor(findings[i].detector);
+       vec.setups[i].direction      = findings[i].direction;
+       vec.setups[i].has_setup_type = findings[i].has_setup_type;
+       vec.setups[i].setup_type     = findings[i].setup_type;
+       PrintFormat("   %-24s kind=%-24s dir=%+d type=%s",
+                   findings[i].detector, findings[i].kind, findings[i].direction,
+                   findings[i].has_setup_type ? findings[i].setup_type : "(null)");
+      }
+    vec.setup_count = nfound;
+    PrintFormat("parity: setups=%d", vec.setup_count);
+
+    // --- Trade plans -----------------------------------------------------
+    // One plan per finding, in the order the findings arrived. That order is
+    // the registry's registration order and is NOT a ranking.
+    //
+    // ## The swing list is EMPTY, and that is a port of the Python, not a gap
+    //
+    // `build_trade_plan` takes a `swings` argument and `_derive_stop` /
+    // `_derive_target` both fall back to "the most recent confirmed swing"
+    // when the setup names no level of its own. But `candidates_from_findings`
+    // -- the only caller the analyzer uses -- does NOT pass `swings`, and the
+    // parameter defaults to `()`. So in the running engine that fallback can
+    // never fire: any stop or target not derived from the payload's own
+    // numbers is an `ATR_FALLBACK`, and no plan in the vector ever reports a
+    // `SWING` basis.
+    //
+    // This was found by parity, not by reading: the first disagreement after
+    // porting the plan layer was a `target_basis` of `SWING` here against
+    // `ATR_FALLBACK` in Python, on a case whose swings make a perfect target.
+    // Passing the real swings "fixed" the number and broke the port, because
+    // the Python side genuinely has none to pass. An empty list is what
+    // `candidates_from_findings` produces, so it is what the port supplies.
+    ABSwing no_swings[];
+    ArrayResize(no_swings, 0);
+
+    ABPlan plans[];
+    const int nplans = AlB_BuildPlans(findings, nfound, bars, usable, last_closed,
+                                       vec.atr, no_swings, 0, plans);
+    ArrayResize(vec.plans, nplans);
+    for(int i = 0; i < nplans; i++)
+      {
+       vec.plans[i].direction          = plans[i].direction;
+       vec.plans[i].entry              = plans[i].entry;
+       vec.plans[i].stop               = plans[i].stop;
+       vec.plans[i].stop_basis         = plans[i].stop_basis;
+       vec.plans[i].target             = plans[i].target;
+       vec.plans[i].target_basis       = plans[i].target_basis;
+       vec.plans[i].reward_to_risk     = plans[i].reward_to_risk;
+       vec.plans[i].is_valid           = plans[i].is_valid ? 1 : 0;
+       vec.plans[i].has_structural_stop = plans[i].has_structural_stop ? 1 : 0;
+       PrintFormat("   plan %-24s dir=%+d entry=%.17g stop=%.17g (%s) "
+                   "target=%.17g (%s) rr=%.17g valid=%s structural=%s",
+                   plans[i].subject, plans[i].direction, plans[i].entry,
+                   plans[i].stop, plans[i].stop_basis, plans[i].target,
+                   plans[i].target_basis, plans[i].reward_to_risk,
+                   plans[i].is_valid ? "true" : "false",
+                   plans[i].has_structural_stop ? "true" : "false");
+      }
+    vec.plan_count = nplans;
+    PrintFormat("parity: trade_plans=%d", vec.plan_count);
+
+    // --- Decision --------------------------------------------------------
+    // One candidate per finding, in the order the findings arrived -- the
+    // registry's registration order, which is NOT a ranking. Each candidate's
+    // evidence bundle is the family's own factors PLUS the shared market-state
+    // context, which is identical for all of them.
+    ABCandidate candidates[];
+    ArrayResize(candidates, nfound);
+    for(int i = 0; i < nfound; i++)
+      {
+       candidates[i].candidate_id = findings[i].detector + "#" + IntegerToString(i);
+       candidates[i].plan = plans[i];
+       AlB_AddFactorsFor(findings[i], ms, candidates[i].factors, candidates[i].factor_count);
+       candidates[i].evidence_value = AlB_Score(candidates[i].factors, candidates[i].factor_count);
+       candidates[i].has_own_evidence = false;
+       for(int f = 0; f < candidates[i].factor_count; f++)
+          if(candidates[i].factors[f].source != AB_SRC_MARKET_STATE)
+             candidates[i].has_own_evidence = true;
+       PrintFormat("   cand %-26s own=%s evidence=%.6f band=%s",
+                   candidates[i].candidate_id,
+                   candidates[i].has_own_evidence ? "true" : "false",
+                   candidates[i].evidence_value,
+                   AlB_Band(candidates[i].evidence_value));
+      }
+
+    ABDecision decision;
+    AlB_Decide(candidates, nfound, bars, usable, last_closed, vec.atr, decision);
+    PrintFormat("parity: decision action=%s reason=%s dir=%d actionable=%s "
+                "(considered=%d eligible=%d rejected=%d bull=%.4f bear=%.4f)",
+                decision.action, decision.reason, decision.direction,
+                decision.is_actionable ? "true" : "false",
+                decision.considered, decision.eligible, decision.rejected,
+                decision.bull_ppts, decision.bear_ppts);
+
+    vec.decision_action        = decision.action;
+    vec.decision_reason        = decision.reason;
+    vec.decision_direction     = decision.direction;
+    vec.decision_is_actionable = decision.is_actionable;
+
+    // The version names what was ACTUALLY ported. A later reader must be able
+    // to tell a genuine partial result from a file someone edited to agree.
+    const string producer_version = "full: all eight groups";
+
    const string body = AB_BuildSidecar(case_id, producer_version, vec);
 
    const string out_name = case_id + ".mql5.json";

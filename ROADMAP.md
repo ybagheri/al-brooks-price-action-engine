@@ -21,10 +21,11 @@ different claims:
 
 ## Where the project stands
 
-**23 of 24 phases are complete.** Phases 0 through 20, 22 and 23 are done and
-verified by the test suite. Phase 21 is the only one that remains: its adapter,
-freeze and session are shipped, and its MQL5 port is **unwritten** — which, as of
-the Phase 23 follow-up, is a statement about effort rather than about tooling.
+**All 24 of 24 phases are complete.** Phases 0 through 20, 21, 22 and 23 are done
+and verified by the test suite. Phase 21's MQL5 port is written, compiled by a
+real MetaEditor build, run in a real Strategy Tester, and **agrees with this
+engine on every declared field of all three cases, with a worst relative
+deviation of `0.0`.**
 
 ### The engine is finished; the platform it runs on is not
 
@@ -49,36 +50,44 @@ bars -> features -> swings/legs -> context -> structures -> setups (11 detectors
 | Golden fixtures | Complete — five hand-authored charts, hand-derived expectations |
 | LLM serialization | Complete — 91.3% reduction, and no score leaves as a bare number |
 
-### Phase 21 is half delivered, and the half that is missing needs hardware
+### Phase 21 is delivered
 
-**The MT5 adapter, the forming-bar freeze and the stateful session are built and
-tested. The MQL5 port is not, and cannot be from where this was written.**
+**The MT5 adapter, the forming-bar freeze, the stateful session and the MQL5 port
+are all built and tested.**
 
 | Phase | What it adds | State |
 |---|---|---|
-| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **started** | A real MQL5 build now produces a real sidecar. `atr` and `swings` agree with Python at **zero** deviation; `market_state`, `setups`, `trade_plans` and `decision` are not ported yet |
+| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/`, `mql5/Include/AlBrooks/`, `mql5/Experts/AlBrooks/` | **Complete.** A real MQL5 build produces three real sidecars, and all three **agree with Python at zero** relative deviation on every declared field |
 | **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | **Complete.** Needed a stable serialized contract to hand an agent, and it now has one |
 | **23 — Bilingual Documentation** | `docs/fa/`, and a test that keeps the two trees from drifting | **Complete.** An honest index plus the three documents whose claims a reader could act on |
 
-The port is not a deferral dressed up as a plan, and it is **not blocked**. An MQL5
+The port is not a deferral dressed up as a plan, and it was never blocked. An MQL5
 implementation of this scope — eleven detectors, the market-state classifier, the
-plan geometry and the decision engine, reproducing a 32-field canonical vector — is
-**partly written**: `Core.mqh` ports ATR and swing detection, and the resulting
-sidecar agrees with Python on `atr`, `swings`, `bars_processed` and
-`last_closed_bar` with a worst relative deviation of **0.0**. The other four
-groups are not ported, and the harness says so rather than passing over them. The
-toolchain to write it with is verified working:
-MetaEditor compiles, the Strategy Tester runs headlessly, and an EA's output is
-readable from Python. `MT5_ADAPTER.md` §5 has the loop.
+plan geometry and the decision engine, reproducing a 32-field canonical vector —
+now exists, and the three cases report `MATCH` with a worst relative deviation of
+**0.0**. The build loop is scripted in `scripts/build_mql5.py`, and
+`MT5_ADAPTER.md` §5 and `MQL5_BUILD_LOOP.md` have the details from both sides.
 
-What would still be wrong is shipping never-compiled MQL5, or hand-writing a
+The port got there by being declared **partially** first: only `atr` and `swings`
+were listed in `AB_PORTED_GROUPS`, so every run was visibly `FAILED` and the
+unported groups could be seen disagreeing. Each group was then added one at a
+time, and the run had to go `MATCH` for that group before the next was started.
+The first real disagreement is recorded in `MT5_ADAPTER.md` §5, and it is a good
+one: the MQL5 side reported a `SWING` target where Python reported
+`ATR_FALLBACK`, because `candidates_from_findings` never passes `swings` to
+`build_trade_plan`. Handing the plan layer the real swings produced the *right
+number* and a **broken port**.
+
+What would have been wrong is shipping never-compiled MQL5, or hand-writing a
 `"producer": "mql5"` sidecar to turn the harness green — the second would be
-precisely the dishonesty the Phase 20 harness exists to detect. So the parity
-status is unchanged and honest: **`UNVERIFIED`**.
+precisely the dishonesty the Phase 20 harness exists to detect. Neither happened,
+and the harness is what proves it: `scripts/build_mql5.py` has no path that copies
+the Python reference and no flag that would make one appear.
 
-`docs/algorithms/MT5_ADAPTER.md` §5 lists exactly what a real completion still owes,
-and `tests/unit/test_phase21_adapter.py` asserts the empty `mql5/` state, so the day
-a real sidecar lands the documentation has to move in the same change.
+`tests/unit/test_phase20_parity.py` asserts the status, the sidecar count and the
+compared-case count **against the run itself**, and asserts that the parity CI step
+runs with no softening flag and still fails on a perturbed sidecar. A stale claim
+about parity is a failing test rather than a sentence nobody checks.
 
 ### The one thing that is not on this list
 
@@ -92,13 +101,15 @@ setups have an edge will not find it here, and that absence is deliberate and
 documented rather than an oversight.
 
 **The same is true of parity, and it is worth saying in the same breath.** Phase
-20 built the harness that will prove an MQL5 port agrees with this one, and
-**one of three cases has been compared, and it disagrees** — because the port
-covers four of the eight groups and the other four are not written yet. The run
-reports `FAILED`, not `UNVERIFIED`, and not `AGREED`. The harness is
-built to be unable to report agreement it has not earned — see *Deliberately Not
-Built* below — and `docs/PYTHON_MQL5_PARITY.md` §7 says so in the document a
-reader of that phase will open first.
+20 built the harness that proves an MQL5 port agrees with this one, and it now
+does: **all three cases are compared and all three match, at zero relative
+deviation.** That is an agreement about *code* — between two implementations of
+the same logic, over three hand-drawn charts and one declared scope. It is not a
+proof of equivalence, it says nothing about inputs the case set does not contain,
+and it says **nothing whatever** about whether any of this works on a market. The
+harness is built to be unable to report agreement it has not earned — see
+*Deliberately Not Built* below — and `docs/PYTHON_MQL5_PARITY.md` §7 says so in
+the document a reader of that phase will open first.
 
 ---
 
@@ -421,22 +432,26 @@ reader of that phase will open first.
   - `docs/PYTHON_MQL5_PARITY.md`, `tests/parity/README.md`,
     `tests/unit/test_phase20_parity.py` — 56 tests, and a CI step.
 
-- [ ] **Phase 21 — MT5 Adapter & MQL5 Layer** — **partially delivered.** The
-  checkbox stays open, and the reason is stated rather than negotiated.
+- [x] **Phase 21 — MT5 Adapter & MQL5 Layer** — **delivered.**
   - **Objective**: MQL5 include headers, MT5 python connector, indicator & EA templates.
-  - **Deliverable**: `src/albrooks/adapters/mt5/` **shipped**;
-    `mql5/Include/AlBrooks/` **unwritten**.
+  - **Deliverable**: `src/albrooks/adapters/mt5/`, `mql5/Include/AlBrooks/`,
+    `mql5/Experts/AlBrooks/`, and three real sidecars.
+  - **Shipped** — `mql5/Include/AlBrooks/` and `mql5/Experts/AlBrooks/`: `Core.mqh`
+    (ATR and swings), `MarketState.mqh` (the classifier and its four proxies, plus
+    `_largest_remainder`), `Setups.mqh` (the eleven detectors and the registry),
+    `Plan.mqh` (the plan geometry and both stop bases), `Decision.mqh` (the
+    evidence factors, the gates and the ranking), `Json.mqh` and `Parity.mqh`.
+    **Three sidecars, one per case, every declared leaf agreeing at a worst
+    relative deviation of `0.0`.**
   - **The "blocked on MetaEditor" claim was wrong, and was never checked.** Phase 21
     recorded the port as blocked on hardware. It is not: MetaEditor 5.0.0.6230
     ships beside the terminal, compiles in about a second, and the Strategy
-    Tester runs headlessly. The whole loop was verified end to end on a throwaway
-    EA — compile, run, write a file, read it back from Python. The one
-    non-obvious requirement: `Login` and `Server` must be in **both** `[Common]`
-    (terminal login) and `[Tester]` (local agent authorisation); with them only in
-    `[Common]` the agent fails with `tester agent authorization error`.
-    **The port is unwritten, not blocked** — a very different statement, and the
-    one a reader of a roadmap deserves. `MT5_ADAPTER.md` §5 carries the same
-    correction.
+    Tester runs headlessly. The one non-obvious requirement: `Login` and
+    `Server` must be in **both** `[Common]` (terminal login) and `[Tester]`
+    (local agent authorisation); with them only in `[Common]` the agent fails with
+    `tester agent authorization error`. **The port is written, not blocked** — a
+    very different statement, and the one a reader of a roadmap deserves.
+    `MT5_ADAPTER.md` §5 carries the same correction.
   - **Shipped** — `src/albrooks/adapters/mt5/`: `MT5Feed` (the only module that
     names `MetaTrader5`, and it imports it lazily so the package imports on a
     machine with no terminal), `normalize_order()` for the series direction,
@@ -498,16 +513,40 @@ reader of that phase will open first.
     and that is its contract, and the session adds a caller rather than editing it —
     so `SessionResult.fade_source` says which reading is which and a test asserts
     **both**.
-  - **Not shipped** — `mql5/Include/AlBrooks/`, and the sidecars that would fill the
-    parity harness's `mql5/` directory. **Nothing blocks writing it.** What the
-    live Alpari MT5 run *did* establish is that the toolchain has to be used
-    rather than trusted: three defects survived 54 passing tests, so a port written
-    and reviewed by inspection would carry the same class of error at ten times the
-    size. The loop to use is `MT5_ADAPTER.md` §5.
-    `docs/PYTHON_MQL5_PARITY.md` §8 lists the ordered work, and
-    `docs/algorithms/MT5_ADAPTER.md` §5 and §10 carry the same. A test asserts
-    that `mql5/` does not exist and that the parity run still reports `UNVERIFIED`,
-    so the day a real sidecar lands the documentation has to move in the same change.
+  - **The port was built partially and declared so, and that is the part worth
+    keeping.** Only `atr` and `swings` went into `AB_PORTED_GROUPS` first, so
+    every run was visibly `FAILED` and the unwritten groups could be seen
+    disagreeing rather than assumed to. Each group was added one at a time, and
+    the run had to go `MATCH` for that group before the next was started.
+  - **The first real disagreement is a good one, and it is recorded.** Porting
+    `trade_plans`, the MQL5 side reported a `SWING` target where Python reported
+    `ATR_FALLBACK` on a case whose swings make a perfect target. Handing the plan
+    layer the real swings produced the **right number and a broken port**, because
+    `candidates_from_findings` never passes `swings` to `build_trade_plan` and the
+    swing fallback is unreachable in the running engine. The fix was to supply an
+    empty list, because that is what the Python side has. A port that computes the
+    right answer for the wrong reason is not a port.
+  - **The MQL5 side pays the freeze, and the port does it.** `FreezeClosedBars()`
+    decides by time on the server clock, and the EA asserts the count it kept
+    equals the count it read, so a silent truncation cannot hide behind
+    `bars_processed`.
+  - **`setup_type` emits JSON `null`.** MQL5 has no null and the string `"NONE"`
+    is a *value* the pullback detectors legitimately produce, so presence is
+    carried beside the value. A port that emitted `"NONE"` everywhere would fail
+    every case — which is the right outcome, and a much better one than a port
+    that passed.
+  - **The live Alpari MT5 run taught the thing the port then depended on:** the
+    toolchain has to be *used* rather than trusted. Three defects survived 54
+    passing tests, so a port written and reviewed by inspection would have
+    carried the same class of error at ten times the size.
+    `MQL5_BUILD_LOOP.md` has the loop and the two silent traps in it: a live
+    instance swallows a batch run with no error at all, and `C:\Program Files` is
+    not writable, so the terminal is run from a mirror.
+  - **`--allow-partial` is out of CI, and a test says why.** It existed to keep a
+    partial port from being a permanently red build. With the port complete it has
+    nothing left to suppress, and a flag that does nothing is worse than no flag,
+    because a reader assumes it is load-bearing. The test asserts both its absence
+    and that an unflagged run over a perturbed sidecar still exits non-zero.
 
 - [x] **Phase 22 — AI / LLM Interface**
   - **Objective**: Stable JSON serialization for LLM agents, diagnostic output, example script.

@@ -52,26 +52,28 @@ jobs:
       run: |
         python scripts/check_docs_present.py
 
-    # The MQL5 port is partial, so the shipped state is FAILED: one real sidecar
-    # exists and disagrees on the groups the port has not written yet.
+    # The MQL5 port is complete, so the shipped state is AGREED: all three
+    # cases name a real sidecar, every declared leaf agrees, and the worst
+    # relative deviation is 0.0.
     #
-    # `--allow-partial` suppresses exactly that and nothing else. A disagreement
-    # inside a group the sidecar declares as `ported` is a regression and still
-    # fails the build; a sidecar with no `ported` declaration is treated as
-    # claiming nothing, so deleting the key is not a way to switch this off.
+    # There is deliberately NO softening flag here, and that is the claim this
+    # step makes. `--allow-partial` is gone because it has nothing left to
+    # suppress: `AB_PORTED_GROUPS` in `mql5/Include/AlBrooks/Parity.mqh` now
+    # names every group in `SCOPE`, so there is no group a disagreement could
+    # land outside of. `--allow-unverified` went one state earlier, for the
+    # same reason. A flag that does nothing is worse than no flag, because a
+    # reader assumes it is load-bearing.
     #
-    # It replaces `--allow-unverified`, which covered the previous state where
-    # nothing had been compared at all. Both were scaffolding for a phase that
-    # had not produced a build; this one is scaffolding for a port that is half
-    # written, which is a different thing and is checked differently.
-    #
-    # `tests/unit/test_phase20_parity.py::test_the_ci_flag_matches_the_shipped_state`
-    # links this flag to the shipped state in both directions, so parity becoming
-    # established -- or this port regressing -- fails the suite rather than
-    # needing to be noticed.
+    # An unflagged run exits non-zero on any disagreement, which is what makes
+    # this step able to fail at all. `test_the_ci_flag_matches_the_shipped_state`
+    # links the absence of the flags to the shipped state in both directions,
+    # so parity regressing -- or a case silently going un-compared -- fails the
+    # suite rather than needing to be noticed. The gate's own ability to catch
+    # a regression is still asserted separately, by
+    # `test_allow_partial_does_not_suppress_a_regression`.
     - name: Run the Python / MQL5 parity harness
       run: |
-        python -m tests.parity.runner --allow-partial
+        python -m tests.parity.runner
 
     - name: Verify package builds
       run: |

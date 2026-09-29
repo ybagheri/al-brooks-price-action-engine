@@ -11,6 +11,94 @@ been statistically validated, and no performance claim is made.
 ## [Unreleased]
 
 ### Added
+- **Phase 21 completed — the MQL5 port, and parity now `AGREED`.** All four
+  remaining groups are written, and a real MetaEditor build running in a real
+  Strategy Tester now produces **three sidecars, one per case, agreeing with
+  Python on every declared field at a worst relative deviation of `0.0`** — not
+  merely inside the `1e-9` tolerance, but exactly zero.
+  - `mql5/Include/AlBrooks/MarketState.mqh` — the classifier and its four proxy
+    modules, plus `_largest_remainder`. `strength` is the winner's *apportioned*
+    percentage over 100, not its raw share of the total, so it is always a whole
+    number of hundredths; a port reporting the raw share is out by whole
+    percentage points rather than in the last bits.
+  - `mql5/Include/AlBrooks/Setups.mqh` — the eleven detectors and the registry, in
+    registration order. The measured-move de-duplication key rounds the target
+    price to nine decimals, because two projections that differ in the
+    seventeenth digit are the same target and dropping one would change the
+    setup **count**, which is compared exactly.
+  - `mql5/Include/AlBrooks/Plan.mqh` — the plan geometry, both stop bases and
+    `reward_to_risk`, driven by a table of anatomies rather than five builders.
+  - `mql5/Include/AlBrooks/Decision.mqh` — the evidence factors, the nine gates and
+    the ranking. The evidence score is the mean of a bundle's factors averaged
+    **within** each source first and then across sources, and it is not a
+    probability, a win rate or an expected value.
+  - **The port was built partially and declared so.** Only `atr` and `swings` went
+    into `AB_PORTED_GROUPS` first, so every run was visibly `FAILED` and the
+    unwritten groups could be seen disagreeing rather than assumed to. Each group
+    was then added one at a time, and the run had to go `MATCH` for that group
+    before the next was started. `--allow-partial` existed to keep that from being
+    a permanently red CI, and it is now gone.
+  - **Two sidecars, and two cases that named none.** `parity_trend_001` and
+    `parity_bear_rally_001` now have `mql5_vector` set, and both were produced by a
+    real build. The bear-rally case is what exercised the major doubles, the
+    measured-move and fading families and the reversal, so the setups port is
+    verified on more than a trending and a ranging series.
+- **`scripts/build_mql5.py` reads the account from the data folder** instead of
+  hard-coding one, and takes `--login` / `--server` as overrides. A login baked
+  into a build script is a login that is wrong on the next machine, and the
+  symptom is `tester not started because the account is not specified` — which
+  reads as a permissions problem and is neither.
+
+### Changed
+- **CI runs the parity harness with no softening flag.** `--allow-unverified` went
+  when the state became `FAILED`; `--allow-partial` went when it became `AGREED`.
+  Each was removed in the same change that removed the state it covered, and a
+  test asserts both their absence *and* that an unflagged run over a perturbed
+  sidecar still exits non-zero — a flag that does nothing is worse than no flag,
+  because a reader assumes it is load-bearing.
+- **`AB_PORTED_GROUPS` now names every group in `SCOPE`.** There is no group a
+  disagreement can land outside of, which is what makes removing `--allow-partial`
+  safe rather than merely tidy.
+- **`test_the_shipped_state_claims_no_parity` became
+  `test_the_shipped_state_claims_agreement_and_says_what_it_is_not`.** It had
+  asserted `UNVERIFIED`, then `FAILED`, and it **failed on purpose** when the
+  status became `AGREED`. That failure was the signal, and it is answered here
+  rather than by relaxing the assertion: the new test asserts the status, the
+  sidecar count and the compared-case count *against the run itself*, and asserts
+  that the caveats limiting the claim are still carried.
+- **`test_the_document_states_the_honest_status` derives its numbers from the
+  run** instead of asserting typed-out strings like `"Zero MQL5 sidecars exist"`.
+  The strings were hand-edited when the state changed, which is a drift risk; the
+  document now has to agree with `run()` about how many sidecars exist and how
+  many cases were compared.
+- **The parity status test is no longer Phase-21-specific.**
+  `test_the_adapter_documentation_exists_and_names_what_is_missing` used to
+  require the word `UNVERIFIED` to stop a reader inferring a port existed. The
+  failure it guarded against is now available in the opposite direction — a reader
+  inferring that `AGREED` means the implementations are equivalent, or that either
+  says anything about a market — so the guard is the same one, pointed the other
+  way.
+- **`README.md`'s canonical-vector count was wrong (`33`, not `32`) and nothing
+  noticed**, because the count-pinning test covered three documents and not the
+  fourth. It covers all four now, and the set is derived rather than listed.
+
+### Fixed
+- **A live terminal swallows a batch run, silently.** `terminal64.exe /config:...`
+  against a data folder that already has an open instance does not start the
+  tester: no error, no log line, no report. The symptom is an absent sidecar,
+  which looks like a broken EA. `scripts/build_mql5.py` now runs a **writable
+  mirror** of the terminal, which also sidesteps `C:\Program Files` being
+  unwritable without elevation — a `PermissionError` from Python that says
+  nothing about the tester and invites the wrong fix.
+- **Copying the data folder's `config` *onto* the install's `Config` directory
+  nests it one level deep**, so the account is not found and the terminal reports
+  `tester not started because the account is not specified`. The copy targets the
+  directory's *contents*.
+- **A portable terminal starts with an empty `Bases`**, so the tester refuses to
+  start on a symbol with no data in range even though the EA reads its bars from
+  the case file. The mirror now copies the test symbol's cached history, which
+  also makes the run offline and deterministic.
+
 - **Phase 23** — `docs/fa/`: a Persian documentation tree, and
   `tests/unit/test_phase23_bilingual.py` — 15 tests that keep the two languages
   from drifting apart silently. Closes the last phase that needed no external
@@ -1002,11 +1090,13 @@ been statistically validated, and no performance claim is made.
     because its range puts equal highs inside every five-bar window. A port agreeing
     here has reproduced the forward-only earliest-wins rule rather than getting lucky
     on a trending series.
-  - **`market_state`, `setups`, `trade_plans` and `decision` are not ported**, so the
-    run reports `FAILED`, and it is supposed to. The first run was not clean, the
-    disagreements are recorded rather than tuned away, and parity is **not**
-    established.
-  - `scripts/build_mql5.py` scripts the whole compile → deploy → stage → run →
+  - ~~**`market_state`, `setups`, `trade_plans` and `decision` are not ported**~~.
+    **Superseded** by the entry at the top of this section: all four are now
+    ported, all three cases are compared, and the run reports `AGREED` at zero
+    relative deviation. The line is left in place because *how the port was built*
+    is the part worth reading: partial first, one group at a time, with the run
+    visibly `FAILED` until each group matched.
+  - `scripts/build_mql5.py` scripts the whole compile → mirror → stage → run →
     read-back loop. **It has no path that copies the Python reference into place and
     no flag that would make one appear.**
 
@@ -1017,23 +1107,30 @@ been statistically validated, and no performance claim is made.
     state is `FAILED` now — *something was compared and it disagreed* — and
     `--allow-unverified` would have done nothing while appearing to. CI would have
     been red for a reason no flag explained.
-  - `--allow-partial` suppresses a disagreement **only** outside the declared
-    `ported` groups. A disagreement *inside* a declared group is a regression and
-    still fails. A sidecar with no `ported` key is treated as claiming nothing, so
-    deleting the key is not a way to switch the gate off. The asymmetry is the point:
-    a declaration is checked, the absence of one is not an excuse.
-  - **This makes an unfinished port distinguishable from a broken one**, which is the
-    only reason a partial port can be committed at all. Without it the options are a
+  - ~~`--allow-partial` suppresses a disagreement only outside the declared
+    `ported` groups.~~ **Superseded**: the port is complete, `AB_PORTED_GROUPS`
+    names every group, and the flag is out of CI. The gate's own ability to catch
+    a regression is still asserted by
+    `test_allow_partial_does_not_suppress_a_regression`, which was deliberately
+    **kept** after the flag left: the gate is a property of the harness rather
+    than of the current state, and a future partial port would need it back.
+  - **This made an unfinished port distinguishable from a broken one**, which was the
+    only reason a partial port could be committed at all. Without it the options were a
     permanently red CI or shipping no sidecar, and the second throws away the real
     evidence.
 - **Ten status claims across six documents were made false by one build.** `ROADMAP.md`,
   `HANDOFF.md`, `PYTHON_MQL5_PARITY.md`, `MT5_ADAPTER.md` and both parity READMEs now
-  describe the compared-and-disagreeing state.
+  describe the compared-and-disagreeing state. **And ten more were made false by the
+  final build**, in the same six documents plus `README.md` — which is the argument for
+  making the status tests derive their numbers from the run instead of asserting
+  hand-edited strings.
 - **The parity contract is 32 leaves, and four places said 33.** `FIELD_CLASSES` was
   always the authority; `ROADMAP.md`, `MT5_ADAPTER.md` and two docstrings disagreed
   with it and nothing noticed, because no test asserted the count. It does now, along
   with the per-class composition — which matters, because the class decides how a
-  field is compared.
+  field is compared. **`README.md` was a fifth place and stayed wrong after the other
+  four were fixed**; the document set is now derived rather than listed, so a fifth
+  place cannot be missed again.
 
 ### Fixed
 - **The MQL5 agent's own `MQL5/Files` is wiped on every startup**, so an input staged

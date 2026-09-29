@@ -177,76 +177,69 @@ look-ahead that *looks like a correct answer*. A caller who knows the period pas
 
 ## 5. What is NOT here, and why
 
-**`mql5/Include/AlBrooks/` exists but is incomplete.** `Core.mqh` ports ATR and
-swing detection; the market-state classifier, the eleven detectors, the trade-plan
-geometry and the decision engine are not ported. A real build produces a real
-sidecar for `parity_range_breakout_001`, and it agrees on the four groups it covers
-with a worst relative deviation of `0.0`.
+**`mql5/Include/AlBrooks/` is complete**, and the parity run is `AGREED`. Three
+sidecars, one per case, each produced by a real MQL5 build, and a **worst relative
+deviation of `0.0`** — not merely inside the `1e-9` tolerance, but exactly zero,
+on every `NUMBER` leaf of every case.
 
 > **Correction, Phase 23 follow-up.** This section previously said the port was
 > **"blocked on MetaEditor and a terminal"**. That was **wrong, and it was never
 > checked.** MetaEditor 5.0.0.6230 ships in the same folder as the terminal, and
-> the full compile-and-run loop works headlessly:
->
-> ```
-> MetaEditor64.exe /compile:<file>.mq5 /log:<log> /inc:<MQL5>      -> 0 errors, .ex5
-> terminal64.exe  /portable /config:<tester>.ini                      -> "last test passed"
-> ```
->
-> The EA's files land in `Tester\Agent-127.0.0.1-3001\MQL5\Files\` and are
-> readable from Python. The one non-obvious requirement: the tester's `Login` and
-> `Server` must appear in **both** `[Common]` (so the terminal itself logs in) and
-> `[Tester]` (so the local agent authorises). With them only in `[Common]` the
-> agent fails with `tester agent authorization error`; with them in both, the
-> test runs and finishes.
->
-> So the port is not blocked. It is **unwritten**, which is a different and much
-> less interesting statement. What follows is the ordered work, unchanged in
-> substance.
+> the full compile-and-run loop works headlessly.
 
-An MQL5 port of this scope — eleven detectors, the market-state classifier, the
-trade-plan geometry and the decision engine, all reproducing a 32-field canonical
-vector — is **half written**. `atr` and `swings` are ported and agree exactly;
-the rest is not, and the run reports `FAILED` rather than rounding that up.
+Two things that section got wrong, both found by measurement rather than by
+reading, and both worth keeping:
 
-So the consequences are stated rather than hidden:
+- **A live terminal swallows a batch run.** `terminal64.exe /config:...` against a
+  data folder that already has an open instance does not start the tester at all:
+  no error, no log line, no report. The symptom is an absent sidecar, which looks
+  like a broken EA. `scripts/build_mql5.py` therefore runs a **writable mirror** of
+  the terminal rather than the installed one, which also solves the second problem.
+- **`C:\Program Files` is not writable without elevation**, so a `/portable` tree
+  rooted at the install cannot be staged into. A directory copy sidesteps both.
+  `docs/algorithms/MQL5_BUILD_LOOP.md` has the details.
 
-- **`tests/parity/mql5/` holds one sidecar**, produced by a real build, for
-  `parity_range_breakout_001` only. The other two cases still name no sidecar.
-- **A parity run reports `FAILED`** — one case compared and disagreeing. That is
-  distinct from `UNVERIFIED` (nothing compared at all) and from agreement.
+The four places a port most easily diverges, and the reason each is in `SCOPE`,
+were all real:
+
+| Divergence | What the port had to do |
+|---|---|
+| **ATR seed** | Wilder's, seeded as a simple mean of the first `period` TRs, and indices `0..period-2` **backfilled with the seed** rather than zero. |
+| **Swing tie-break** | Earliest-wins, **forward-only, on the right wing only**. An equal high in the left wing does not disqualify a candidate. |
+| **Series direction** | Oldest-first, and the freeze decided by *time* on the server clock, not by position. |
+| **Null convention** | `setups[].setup_type` emits JSON `null`. MQL5 has no null, and the string `"NONE"` is a *value* the pullback detectors can produce — emitting it everywhere fails every case, which is the right outcome. |
+
+The consequences are stated rather than hidden:
+
+- **`tests/parity/mql5/` holds three sidecars**, one per case, every case's
+  `mql5_vector` set, all from real builds.
+- **A parity run reports `AGREED`**, and `tests/unit/test_phase20_parity.py`
+  asserts that status, the sidecar count and the compared-case count *against the
+  run itself* rather than against typed-out strings.
 - **The MQL5 side owes the freeze and the port does it.** `FreezeClosedBars()`
   decides by time on the server clock, and the EA asserts the count it kept equals
   the count it read, so a silent truncation cannot hide behind `bars_processed`.
-- **`--allow-unverified` is still in `.github/workflows/ci.yml`**, and
-  `tests/unit/test_phase20_parity.py` still asserts the flag and the shipped state
-  stay in step.
-- **No parity claim is made anywhere in this project.** The suite passing says the
-  Python engine is internally consistent. It says nothing about agreement with a
-  second implementation, because there is no second implementation.
+- **CI runs the harness with no softening flag.** `--allow-unverified` went when
+  the state became `FAILED`; `--allow-partial` went when it became `AGREED`. Each
+  was removed in the same change that removed the state it covered, and a test
+  asserts both the absence and that an unflagged run over a perturbed sidecar
+  still exits non-zero.
+- **No claim about the market is made anywhere in this project.** An `AGREED` run
+  is an agreement between two implementations of the same code, over three
+  hand-drawn charts. It is not a proof of equivalence, and nothing here has been
+  validated against outcomes.
 
-A test in this phase's suite
-(`test_no_mql5_sidecar_exists_and_the_parity_run_still_says_unverified`) asserts
-the empty state, so the day a real sidecar lands the documentation has to move in
-the same change. A status that only gets checked when someone remembers is not
-checked.
+### The first disagreement, and why it is recorded
 
-### What a real Phase 21 completion still owes
+Porting `trade_plans` produced a `SWING` target where Python produced
+`ATR_FALLBACK`, on a case whose swings make a perfect target. The tempting fix was
+to hand the plan layer the real swings — which produces the "right" number and
+**breaks the port**, because `candidates_from_findings` never passes `swings` to
+`build_trade_plan` and the fallback is therefore unreachable in the running engine.
 
-Per `docs/PYTHON_MQL5_PARITY.md` §8, in order:
-
-1. `mql5/Include/AlBrooks/` implementing `SCOPE`. The four places a port most
-   easily diverges, and the reason each is in scope: the **ATR seed**, the **swing
-   tie-break** (earliest-wins), the **`BarSeries` direction**, and the **null
-   convention**.
-2. One sidecar per case in `tests/parity/mql5/`, each case's `mql5_vector` set,
-   and `--allow-unverified` removed from CI. A test links the two.
-3. **The disagreements the first run produces, recorded.** The expectation is that
-   it fails. A harness whose first recorded result is a clean pass should be
-   checked for having compared nothing — and if a hand-written
-   `"producer": "mql5"` file is ever committed to make it pass, that is worse than
-   no MQL5 code at all, because the harness would then be reporting agreement it
-   did not measure.
+The fix was to supply an empty list, because that is what the Python side has. A
+port that computes the right answer for the wrong reason is not a port, and this
+is the case the harness was built to catch.
 
 ## 6. The Phase 19 finding, closed
 
@@ -416,11 +409,14 @@ adapter sends no orders and neither do these.
 
 ### What the live run does *not* establish
 
-- **Nothing about parity.** A working adapter on the Python side is not a second
-  implementation. §7 stands.
-- **Nothing about the MQL5 port.** `mql5/` now holds a partial implementation, and a
-  partial port is not a second implementation. §5 says which four groups agree and
-  which four have not been written.
+- **Nothing about the market.** The live suite asserts that a result was produced,
+  not that it is any good. `VALIDATION.md` §9 is unchanged, and nothing in this
+  project has been validated against outcomes.
+- **Nothing about parity beyond the harness's own scope.** The `AGREED` run in §5
+  is agreement between two implementations of the same code over three cases. It
+  is not a proof of equivalence, and this suite is a different question entirely:
+  it checks that the *adapter* reads a live terminal correctly, which no amount of
+  parity can establish.
 - **Nothing about the readings.** The live suite asserts that a result was
   produced, not that it is any good. `VALIDATION.md` §9 is unchanged.
 - **Nothing about other brokers.** Alpari EURUSD M15 is one venue and one symbol.

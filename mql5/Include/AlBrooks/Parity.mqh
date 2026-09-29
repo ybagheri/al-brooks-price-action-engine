@@ -32,10 +32,40 @@
 // cannot tell them apart -- so the honest option would be to not ship the
 // sidecar at all, which throws away the real evidence this produces.
 //
-// `setups`, `trade_plans`, `market_state` and `decision` are absent because
-// they are not ported yet. `producer_version` says the same thing in prose;
-// this says it in a form a test can check.
-#define AB_PORTED_GROUPS "[\"atr\", \"bars_processed\", \"last_closed_bar\", \"swings\"]"
+// Every group in `SCOPE` is now implemented by this build, so the list
+// is the whole scope. That makes it the regression tripwire in its
+// strongest form: there is no longer any group a disagreement can hide
+// in, and `--allow-partial` has nothing left to suppress.
+#define AB_PORTED_GROUPS "[\"atr\", \"bars_processed\", \"decision\", \"last_closed_bar\", \"market_state\", \"setups\", \"swings\", \"trade_plans\"]"
+
+
+struct ABSetupEntry
+  {
+   string         detector;
+   string         kind;
+   string         setup_family;
+   int            direction;
+   // `setup_type` is genuinely nullable and MQL5 has no null, so presence is
+   // carried beside the value. Emitting the string "NONE" for an absent type
+   // would be a *value*, and `CODE_OR_NULL` compares null and "NONE"
+   // differently -- so a port that did that fails every case, which is the
+   // right outcome and a much better one than a port that passed.
+   bool           has_setup_type;
+   string         setup_type;
+  };
+
+struct ABPlanEntry
+  {
+   int            direction;
+   double         entry;
+   double         stop;
+   string         stop_basis;
+   double         target;
+   string         target_basis;
+   double         reward_to_risk;
+   int            is_valid;            // 0/1, written as a JSON bool
+   int            has_structural_stop;  // 0/1, written as a JSON bool
+  };
 
 struct ABVector
   {
@@ -47,8 +77,15 @@ struct ABVector
    int            ms_direction;
    double         ms_strength;
    ABSwing        swings[];
+   ABSetupEntry   setups[];
    int            setup_count;
+   ABPlanEntry    plans[];
    int            plan_count;
+   // The decision: action, reason, direction, is_actionable.
+   string         decision_action;
+   string         decision_reason;
+   int            decision_direction;
+   int            decision_is_actionable;
   };
 
 //+------------------------------------------------------------------+
@@ -103,12 +140,13 @@ string AB_BuildVector(const ABVector &v)
    s += "    \"atr\": " + AB_FmtNum(v.atr) + ",\n";
    s += "    \"bars_processed\": " + AB_FmtInt(v.bars_processed) + ",\n";
 
-   s += "    \"decision\": {\n";
-   s += "      \"action\": \"WAIT\",\n";
-   s += "      \"direction\": 0,\n";
-   s += "      \"is_actionable\": false,\n";
-   s += "      \"reason\": \"NOT_PORTED\"\n";
-   s += "    },\n";
+    s += "    \"decision\": {\n";
+    s += "      \"action\": " + AB_Quote(v.decision_action) + ",\n";
+    s += "      \"direction\": " + AB_FmtInt(v.decision_direction) + ",\n";
+    s += "      \"is_actionable\": " + (v.decision_is_actionable ? "true" : "false") + ",\n";
+    s += "      \"reason\": " + AB_Quote(v.decision_reason) + "\n";
+    s += "    },\n";
+
 
    s += "    \"last_closed_bar\": " + AB_FmtInt(v.last_closed_bar) + ",\n";
 
@@ -119,7 +157,29 @@ string AB_BuildVector(const ABVector &v)
    s += "      \"valid\": " + (v.ms_valid ? "true" : "false") + "\n";
    s += "    },\n";
 
-   s += "    \"setups\": [],\n";
+    s += "    \"setups\": [";
+    if(ArraySize(v.setups) > 0)
+      {
+       s += "\n";
+       for(int i = 0; i < ArraySize(v.setups); i++)
+         {
+          s += "      {";
+          s += "\"detector\": " + AB_Quote(v.setups[i].detector);
+          s += ", \"direction\": " + AB_FmtInt(v.setups[i].direction);
+          s += ", \"kind\": " + AB_Quote(v.setups[i].kind);
+          s += ", \"setup_family\": " + AB_Quote(v.setups[i].setup_family);
+          // JSON null, not "NONE" and not "". The harness compares this leaf
+          // under CODE_OR_NULL, where null and "NONE" are different answers.
+          s += ", \"setup_type\": " + (v.setups[i].has_setup_type ? AB_Quote(v.setups[i].setup_type) : "null");
+          s += "}";
+          if(i < ArraySize(v.setups) - 1)
+             s += ",";
+          s += "\n";
+         }
+       s += "    ";
+      }
+    s += "],\n";
+
 
    s += "    \"swings\": [";
    if(ArraySize(v.swings) > 0)
@@ -141,7 +201,31 @@ string AB_BuildVector(const ABVector &v)
      }
    s += "],\n";
 
-   s += "    \"trade_plans\": []\n";
+    s += "    \"trade_plans\": [";
+    if(ArraySize(v.plans) > 0)
+      {
+       s += "\n";
+       for(int i = 0; i < ArraySize(v.plans); i++)
+         {
+          s += "      {";
+          s += "\"direction\": " + AB_FmtInt(v.plans[i].direction);
+          s += ", \"entry\": " + AB_FmtNum(v.plans[i].entry);
+          s += ", \"has_structural_stop\": " + (v.plans[i].has_structural_stop ? "true" : "false");
+          s += ", \"is_valid\": " + (v.plans[i].is_valid ? "true" : "false");
+          s += ", \"reward_to_risk\": " + AB_FmtNum(v.plans[i].reward_to_risk);
+          s += ", \"stop\": " + AB_FmtNum(v.plans[i].stop);
+          s += ", \"stop_basis\": " + AB_Quote(v.plans[i].stop_basis);
+          s += ", \"target\": " + AB_FmtNum(v.plans[i].target);
+          s += ", \"target_basis\": " + AB_Quote(v.plans[i].target_basis);
+          s += "}";
+          if(i < ArraySize(v.plans) - 1)
+             s += ",";
+          s += "\n";
+         }
+       s += "    ";
+      }
+    s += "]\n";
+
 
    s += "  }";
    return(s);

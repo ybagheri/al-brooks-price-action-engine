@@ -1,7 +1,7 @@
 {
   "case_id": "parity_range_breakout_001",
   "producer": "mql5",
-  "producer_version": "partial: atr+swings",
+  "producer_version": "full: all eight groups",
   "schema": "albrooks-parity/1",
   "scope": [
     "atr",
@@ -13,7 +13,7 @@
     "swings",
     "trade_plans"
   ],
-  "ported": ["atr", "bars_processed", "last_closed_bar", "swings"],
+  "ported": ["atr", "bars_processed", "decision", "last_closed_bar", "market_state", "setups", "swings", "trade_plans"],
   "vector": {
     "atr": 1.1592862572260927,
     "bars_processed": 30,
@@ -21,21 +21,29 @@
       "action": "WAIT",
       "direction": 0,
       "is_actionable": false,
-      "reason": "NOT_PORTED"
+      "reason": "ALL_CANDIDATES_VETOED"
     },
     "last_closed_bar": 29,
     "market_state": {
       "direction": 0,
-      "mode": "NOT_PORTED",
-      "strength": 0.0000000000000000,
-      "valid": false
+      "mode": "TRADING_RANGE",
+      "strength": 0.2400000000000000,
+      "valid": true
     },
-    "setups": [],
+    "setups": [
+      {"detector": "BREAKOUT", "direction": 1, "kind": "DEFAULT", "setup_family": "BREAKOUT", "setup_type": null},
+      {"detector": "DOUBLE_TOP_MICRO", "direction": -1, "kind": "DOUBLE_TOP", "setup_family": "DOUBLE_TOP", "setup_type": null},
+      {"detector": "DOUBLE_BOTTOM_MICRO", "direction": 1, "kind": "DOUBLE_BOTTOM", "setup_family": "DOUBLE_BOTTOM", "setup_type": null}
+    ],
     "swings": [
       {"bar_index": 7, "confirmed_bar_index": 10, "direction": 1, "price": 101.4000000000000057},
       {"bar_index": 12, "confirmed_bar_index": 15, "direction": 1, "price": 101.4000000000000057},
       {"bar_index": 19, "confirmed_bar_index": 22, "direction": -1, "price": 100.0000000000000000}
     ],
-    "trade_plans": []
+    "trade_plans": [
+      {"direction": 1, "entry": 104.7000000000000029, "has_structural_stop": true, "is_valid": true, "reward_to_risk": 0.6458740282541278, "stop": 101.1101784356934843, "stop_basis": "BREAKOUT_REFERENCE", "target": 107.0185725144521882, "target_basis": "ATR_FALLBACK"},
+      {"direction": -1, "entry": 104.7000000000000029, "has_structural_stop": true, "is_valid": true, "reward_to_risk": 25.8130943538234661, "stop": 104.7898215643065214, "stop_basis": "PATTERN_EXTREME", "target": 102.3814274855478175, "target_basis": "ATR_FALLBACK"},
+      {"direction": 1, "entry": 104.7000000000000029, "has_structural_stop": true, "is_valid": true, "reward_to_risk": 1.4583853726147869, "stop": 103.1101784356934843, "stop_basis": "PATTERN_EXTREME", "target": 107.0185725144521882, "target_basis": "ATR_FALLBACK"}
+    ]
   }
 }

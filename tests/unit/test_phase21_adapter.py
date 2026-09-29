@@ -1270,28 +1270,55 @@ def test_the_partial_mql5_port_agrees_exactly_where_it_claims_to() -> None:
                 f"{path.name} declares {group!r} as ported but disagrees on it"
             )
         # Under-declaring would let a real difference hide outside the declared
-        # set, which is the loophole this assertion exists to close.
-        assert not (disagreeing - {"market_state", "setups", "trade_plans", "decision"}), (
-            f"{path.name} disagrees on groups outside the known-unported set: "
-            f"{sorted(disagreeing - {'market_state', 'setups', 'trade_plans', 'decision'})}"
+        # set, which is the loophole this assertion exists to close. The set is
+        # the groups `AB_PORTED_GROUPS` in `mql5/Include/AlBrooks/Parity.mqh`
+        # does NOT list, and it is deliberately narrow: a disagreement on a
+        # group that *is* ported is a regression, and must not be excused here
+        # as "one of the known-unported ones".
+        not_yet_ported = {"trade_plans", "decision"}
+        assert not (disagreeing - not_yet_ported), (
+            f"{path.name} disagrees on groups outside the known-unported set "
+            f"{sorted(not_yet_ported)}: {sorted(disagreeing - not_yet_ported)}"
         )
 
 
 def test_the_adapter_documentation_exists_and_names_what_is_missing() -> None:
     """`docs/algorithms/MT5_ADAPTER.md` is required, and must be honest.
 
-    Same reasoning as the parity test above: a document nobody checks is how a
-    phase's real status drifts from what the phase claims.
+    ## The assertion changed with the state, and the *reason* for it did not
+
+    This used to require the word `UNVERIFIED`, to stop a reader inferring that
+    a port existed when none did. The port now exists and the run is `AGREED`, so
+    that specific guard no longer applies — but the failure it guarded against is
+    now available in the opposite direction and is just as likely: a reader
+    inferring that `AGREED` means the two implementations are equivalent, or that
+    either says anything about a market.
+
+    So the guard is the same one, pointed the other way. The document must say
+    what the agreement is *not*, and it must not leave the reader with only the
+    verdict.
     """
     path = REPO / "docs" / "algorithms" / "MT5_ADAPTER.md"
     assert path.is_file(), "Phase 21 owes docs/algorithms/MT5_ADAPTER.md"
 
     text = path.read_text(encoding="utf-8")
     assert "mql5" in text.lower()
-    assert "UNVERIFIED" in text, (
-        "the adapter document must state that parity remains unverified, or a "
-        "reader will infer the port exists"
+    assert "AGREED" in text, (
+        "the adapter document must state the parity verdict a run produces, or a "
+        "reader will have to go and run the harness to learn it"
     )
+    assert "0.0" in text, (
+        "the document must state the observed worst relative deviation; 'within "
+        "tolerance' and 'exactly zero' are different claims and only one is true"
+    )
+    for limit in (
+        "not a proof of equivalence",
+        "validated against outcomes",
+    ):
+        assert limit in text, (
+            f"the document must say what the agreement is not ({limit!r}); an "
+            f"AGREED run that reads as a market claim is the failure this guards"
+        )
 
 
 

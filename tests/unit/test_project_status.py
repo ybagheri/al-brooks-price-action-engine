@@ -55,7 +55,17 @@ LAST_PHASE = 23
 
 #: Phases that are complete, derived from the watermark. Everything at or below
 #: `LAST_COMPLETE_PHASE` except those listed in `PHASES_STILL_OPEN`.
-PHASES_STILL_OPEN: frozenset[int] = frozenset({21})
+#:
+#: **Now empty.** Phase 21 was the last one open, and it closed when the MQL5
+#: port was written, built by a real MetaEditor compile and a real Strategy
+#: Tester run, and agreed with Python on all three cases at zero deviation.
+#:
+#: The set is kept rather than deleted, because it is the mechanism: a phase is
+#: removed from here in the same change that fills its checkbox, and the test
+#: below fails in both directions. Deleting the constant would remove the only
+#: place that could be wrong, and the roadmap sentence it generates is asserted
+#: against it.
+PHASES_STILL_OPEN: frozenset[int] = frozenset()
 
 #: Every complete phase. Used by the roadmap tests instead of a range.
 COMPLETE_PHASES: frozenset[int] = (
@@ -255,22 +265,35 @@ def test_the_readme_status_table_covers_every_area_of_the_engine() -> None:
         f"README.md still reports the MT5 adapter as {rows['MT5 adapter']!r}; "
         f"Phase 21 shipped it"
     )
-    # `MQL5 parity` is a different claim from `MQL5 layer`: the harness is built and
-    # unfilled, which is neither "done" nor "not started", and collapsing the two
-    # would be the error this project keeps refusing elsewhere. So it is checked
-    # for the *specific* thing that is true — nothing compared — rather than
-    # against a single "not started" phrase that would have fit neither row.
+    # `MQL5 parity` is a different claim from `MQL5 layer`: one is about what the
+    # comparison found, the other about whether there is a second implementation
+    # to compare. Collapsing the two would be the error this project keeps
+    # refusing elsewhere.
+    #
+    # This row was checked for "the harness exists and compares nothing", which
+    # was true while the port was partial. It is now checked for the thing that is
+    # true *instead*, and the limits of that claim are checked with it: an
+    # `AGREED` row that did not also say it is not a proof of equivalence would
+    # be a table making a stronger claim than the run does.
     assert "MQL5 parity" in rows
     parity = rows["MQL5 parity"]
-    assert "nothing compared" in parity and "No MQL5 build" in parity, (
-        f"the parity row must say the harness exists and compares nothing; it says "
+    assert "Agreed on all 3 cases" in parity, (
+        f"the parity row must report the comparison that actually happened; it says "
         f"{parity!r}"
     )
+    assert "0.0" in parity, (
+        f"the parity row must state the observed deviation, because 'within "
+        f"tolerance' and 'exactly zero' are different claims; it says {parity!r}"
+    )
+    assert "Not a proof of equivalence" in parity, (
+        f"an AGREED parity row that does not limit its own claim is the failure "
+        f"this guards; it says {parity!r}"
+    )
     # Rows whose state is asserted, so a stale table fails here rather than in a
-    # reader's head. `MQL5 parity` is deliberately absent from both groups: the
-    # harness is built and unfilled, which is neither done nor unstarted, and is
-    # checked for the specific thing that is true instead.
-    for shipped in ("MT5 adapter", "AI / LLM interface"):
+    # reader's head. `MQL5 parity` is deliberately absent from the "shipped" group
+    # below: it is a *result*, not a layer, and asserting "Implemented" on it would
+    # be the same collapsing the project refuses elsewhere.
+    for shipped in ("MT5 adapter", "AI / LLM interface", "MQL5 layer"):
         assert shipped in rows, f"README.md has no {shipped!r} row"
         assert "Implemented" in rows[shipped], (
             f"README.md reports {shipped!r} as {rows[shipped]!r}"
@@ -279,7 +302,12 @@ def test_the_readme_status_table_covers_every_area_of_the_engine() -> None:
     # twenty-two algorithm documents exist, and Phase 23 expands them rather than
     # creating them. A third state, and asserting it as either of the other two
     # would be the same collapsing the project refuses elsewhere.
-    for not_started in ("MQL5 layer",):
+    #
+    # The "Not started" group is now **empty**. `MQL5 layer` was its only member
+    # and it closed with the port; the loop is kept rather than deleted, because
+    # an empty tuple asserts "no row claims to be unstarted" only for as long as
+    # someone remembers to add to it.
+    for not_started in ():
         assert not_started in rows, f"README.md has no {not_started!r} row"
         assert "Not started" in rows[not_started], (
             f"README.md reports {not_started!r} as {rows[not_started]!r}"

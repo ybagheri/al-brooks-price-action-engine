@@ -17,14 +17,20 @@ never depends on MetaTrader 5. Platform integration lives strictly in adapters.
 
 ## Status
 
-**23 of 24 phases are complete** (all but 21). One remains, and it is blocked on
-hardware rather than on effort.
+**All 24 of 24 phases are complete.**
 
-Phase 21 is **partially** delivered: the adapter, the freeze and the stateful
-session are built, tested **and run against a live MetaTrader terminal** (which
-found three defects the fake-driven tests had passed — see
-[MT5_ADAPTER.md §10](docs/algorithms/MT5_ADAPTER.md)), while the MQL5 port is
-blocked on MetaEditor and parity therefore still reports `UNVERIFIED`.
+Phase 21 is delivered in full. The adapter, the freeze and the stateful session
+are built, tested **and run against a live MetaTrader terminal** (which found
+three defects the fake-driven tests had passed — see
+[MT5_ADAPTER.md §10](docs/algorithms/MT5_ADAPTER.md)). The MQL5 port is written
+too, and it is **not** a claim: a real MetaEditor build compiles it, a real
+Strategy Tester runs it, and it **agrees with this engine on every declared field
+of all three parity cases, with a worst relative deviation of `0.0`** — not
+merely inside the `1e-9` tolerance.
+
+That is an agreement about code, between two implementations of the same logic,
+over three hand-drawn charts. It is not a proof of equivalence, and it says
+nothing about whether any of it works on a market.
 
 Phase 22 needed no external tooling and is complete: a stable, self-reporting
 serialization for a language model that makes the payload 91% smaller and refuses
@@ -53,9 +59,9 @@ and [CHANGELOG.md](CHANGELOG.md) for history.
 | Non-repaint contract | Formalised — 18 numbered guarantees, each naming its test |
 | Backtesting | Implemented — MFE/MAE, time to level, outcome class. **No P&L, by design** |
 | Golden fixtures | Implemented — 5 hand-authored charts, hand-derived expectations, falsifiers |
-| MQL5 parity | **Harness built, nothing compared** — Phase 20. No MQL5 build exists yet |
+| MQL5 parity | **Agreed on all 3 cases at 0.0 deviation** — Phase 20 harness, Phase 21 port. Not a proof of equivalence |
 | MT5 adapter | **Implemented and run against a live terminal** — Phase 21. Feed, series direction, forming-bar freeze, stateful session |
-| MQL5 layer | **Not started** — Phase 21, blocked on MetaEditor. Nothing has been compared |
+| MQL5 layer | **Implemented and built for real** — Phase 21. `mql5/`, compiled by MetaEditor, run in the Strategy Tester |
 | AI / LLM interface | **Implemented** — Phase 22. 91% smaller payload, no score leaves as a bare number |
 | Bilingual documentation | **Partial by choice** — Phase 23. `docs/fa/` indexes all 24 English docs and translates the three whose claims a reader could act on |
 
@@ -416,32 +422,38 @@ Three things this dataset found, recorded rather than quietly fixed:
 **This is a semantic regression suite, not a validation study.** It establishes
 what the engine *names* over five hand-drawn charts. It says nothing about whether
 any setup works, and
-[docs/algorithms/VALIDATION.md](docs/algorithms/VALIDATION.md) §9 lists what would
-be needed to change that. What is not built: the MT5 adapter and MQL5 layer
-(Phase 21) and the AI/LLM interface (Phase 22).
+  [docs/algorithms/VALIDATION.md](docs/algorithms/VALIDATION.md) §9 lists what would
+  be needed to change that. All 24 phases are delivered; what is deliberately
+  absent is the *validation*, not the engine.
+
 
 ## Python / MQL5 parity
 
-`tests/parity/` holds the contract an MQL5 port would be compared against: a
-**canonical vector** of 33 declared fields — the analysed bar, ATR, the market
+`tests/parity/` holds the contract the MQL5 port is compared against: a
+**canonical vector** of 32 declared fields — the analysed bar, ATR, the market
 state, the swings with both their bar index and their confirmation index, the
 detected setups, the plan geometry with the basis of every level, and the
 decision with its reason code.
 
-**Nothing has been compared.** No MQL5 build of this engine exists;
-`tests/parity/mql5/` is empty and a run reports `UNVERIFIED` — neither a pass nor
-a failure, because no comparison happened. The harness is built so that state
-cannot be mistaken for a result: a sidecar that did not come from an MQL5 build is
-not counted, a sidecar covering less than the full scope is refused, and
-`AGREED` requires *every* case to have been compared.
+**All three cases are compared and all three match**, at a worst relative
+deviation of **0.0** — not merely inside the `1e-9` tolerance. Each sidecar in
+`tests/parity/mql5/` was produced by a real MetaEditor build run in a real
+Strategy Tester, reading that case's own bars.
+
+That is an agreement about code, over three hand-drawn charts and one declared
+scope. **It is not a proof that the two implementations are equivalent**, and it
+says nothing about inputs the case set does not contain. The harness is built so
+that the limits cannot be lost: a sidecar that did not come from an MQL5 build is
+not counted, one covering less than the full scope is refused, and `AGREED`
+requires *every* case to have been compared.
 
 ```bash
-python -m tests.parity.runner   # exit 2 while nothing is comparable
+python -m tests.parity.runner   # exit 0 when AGREED, exit 1 on any disagreement
 ```
 
-Phase 20 shipped the contract and Phase 21 ships the port, because a
-specification written after the port exists is a specification shaped around
-whatever the port happened to do. See [docs/PYTHON_MQL5_PARITY.md](docs/PYTHON_MQL5_PARITY.md).
+Phase 20 shipped the contract and Phase 21 the port, because a specification
+written after the port exists is a specification shaped around whatever the port
+happened to do. See [docs/PYTHON_MQL5_PARITY.md](docs/PYTHON_MQL5_PARITY.md).
 
 ## Testing
 
@@ -480,9 +492,12 @@ mypy src            # static types
 - A single-timeframe `analyze()` has no higher-timeframe context, and its
   explanation says so in the output rather than implying otherwise.
 - No backtested performance data ships with this project.
-- **No MQL5 parity has been established.** The harness exists and is unfilled:
-  there is no MQL5 build, so nothing has been compared, and the runner's verdict is
-  `UNVERIFIED` rather than a pass. See
+- **Parity is agreement about code, and nothing more.** The MQL5 port agrees with
+  this engine on every declared field of all three cases, at zero relative
+  deviation. That is three hand-drawn charts and one declared scope: it is not a
+  proof of equivalence, it says nothing about inputs the case set does not
+  contain, and **it says nothing whatever about whether any of this works on a
+  market.** The run reports `AGREED` and carries its own caveats saying so. See
   [PYTHON_MQL5_PARITY.md](docs/PYTHON_MQL5_PARITY.md) §7.
 
 ## Documentation

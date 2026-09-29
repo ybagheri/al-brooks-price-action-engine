@@ -4,37 +4,46 @@ An MQL5 build writes one file per parity case into this directory, named
 `<case_id>.mql5.json`, in the envelope `tests/parity/contract.py` describes, with
 `"producer": "mql5"`.
 
-## Status: one real sidecar, one case, disagreeing
+## Status: three real sidecars, three cases, all agreeing
 
-`parity_range_breakout_001.mql5.json` is here, produced by a real MetaEditor
-build that ran in the Strategy Tester and read that case's own bars. It is
-compared, and it **disagrees** — on `market_state`, `setups`, `trade_plans` and
-`decision`, which the port has not written yet. On `atr`, `swings`,
-`bars_processed` and `last_closed_bar` it agrees with Python at a worst relative
-deviation of **0.0**.
+All three files here were produced by real MetaEditor builds that ran in the
+Strategy Tester and read each case's own bars:
 
-Parity is therefore **not** established, and the run reports `FAILED`.
+| File | Case | Result |
+|---|---|---|
+| `parity_bear_rally_001.mql5.json` | `parity_bear_rally_001` | `MATCH` |
+| `parity_range_breakout_001.mql5.json` | `parity_range_breakout_001` | `MATCH` |
+| `parity_trend_001.mql5.json` | `parity_trend_001` | `MATCH` |
 
-Each file carries a `"ported"` list naming the groups that build actually
-implemented. `--allow-partial` uses it to suppress a disagreement only outside
-those groups, so an unfinished port is distinguishable from a broken one. A
-disagreement *inside* a declared group still fails, and a file with no `ported`
-key is treated as claiming nothing, so deleting the key is not a way to switch
-the gate off.
+The run reports `AGREED`, and the **worst relative deviation is `0.0`** on every
+`NUMBER` leaf of every case — not merely inside the `1e-9` tolerance.
 
-The other two cases still name no sidecar, and a case set that is only partly
-filled can never report agreement.
+That is agreement between two implementations of the same code, over three
+hand-drawn charts. It is not a proof of equivalence, it says nothing about inputs
+outside the case set, and it says nothing about whether any of this works on a
+market. Nothing in this project has been validated against outcomes.
 
-## Rebuilding it
+Each file carries a `"ported"` list naming the groups that build implemented. It
+was load-bearing while the port was partial, and it is now the whole `SCOPE` —
+which is why `--allow-partial` has been removed from CI: there is no group a
+disagreement can land outside of. The list stays because it is a machine-checkable
+claim, and a build that quietly stopped implementing a group would be caught by
+`test_the_partial_mql5_port_agrees_exactly_where_it_claims_to` rather than by
+reading a version string.
+
+## Rebuilding them
 
 ```bat
 python scripts/build_mql5.py --case parity_range_breakout_001
-python -m tests.parity.runner --allow-partial
+python -m tests.parity.runner
 ```
 
-The script compiles, deploys, stages the case, runs the tester, and copies the
-sidecar back. It has no path that copies the Python reference here, and no flag
-that makes one appear.
+The script mirrors the terminal to a writable directory, compiles, stages the
+case, runs the tester, and copies the sidecar back. It has no path that copies
+the Python reference here, and no flag that makes one appear.
+
+Rebuild after changing anything under `mql5/`, and commit the new sidecars in the
+same change. A stale sidecar is a claim about a build that no longer exists.
 
 ## Do not hand-write a file
 

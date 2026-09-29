@@ -82,6 +82,7 @@ from tests.parity.runner import (
     EXIT_FAILED,
     EXIT_UNVERIFIED,
     FAILED,
+    MATCH,
     MQL5_ABSENT,
     NOT_AN_MQL5_SIDECAR,
     SCHEMA_MISMATCH,
@@ -100,6 +101,11 @@ from tests.parity.runner import (
 REPO = Path(__file__).resolve().parents[2]
 DOC = REPO / "docs" / "PYTHON_MQL5_PARITY.md"
 CI = REPO / ".github" / "workflows" / "ci.yml"
+#: The documents that quote the canonical vector's field count. Listed once so
+#: the count cannot be corrected in some of them and left stale in another --
+#: which is what happened with `README.md`.
+ADAPTER = REPO / "docs" / "algorithms" / "MT5_ADAPTER.md"
+ROADMAP = REPO / "ROADMAP.md"
 
 CASES = load_cases()
 CASES_BY_ID = {c.id: c for c in CASES}
@@ -577,32 +583,55 @@ def test_a_broken_case_is_contained_rather_than_raising(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_the_shipped_state_claims_no_parity() -> None:
-    """Parity is still **not** established, and this now has to be argued for.
+def test_the_shipped_state_claims_agreement_and_says_what_it_is_not() -> None:
+    """The alarm this test was built to raise has been raised, and answered.
 
-    ## What changed
+    ## The history, because the change is the point
 
-    This used to be `assert report.status == UNVERIFIED` — nothing had ever been
-    compared, so there was no verdict to argue about. That is no longer true: a
-    real MQL5 build has produced a real sidecar for `parity_range_breakout_001`,
-    and the run is `FAILED`, not `UNVERIFIED`.
+    This asserted `UNVERIFIED` when nothing had ever been compared, then
+    `FAILED` once a real build produced one real sidecar. Each assertion was
+    correct for its moment, and each was replaced only when the shipped state
+    actually changed. The third replacement is here:
 
-    ## Why the distinction is the whole point
+    - Phase 20 shipped with `UNVERIFIED`: no MQL5 build existed.
+    - The first sidecar shipped with `FAILED`: one case compared, and it
+      disagreed on the groups the port had not written.
+    - The full port ships with **`AGREED`**: all three cases compared, every
+      declared leaf agreed, worst relative deviation `0.0`.
 
-    A harness that reports `AGREED` without having compared enough is worse than
-    one that reports nothing, so the status here is asserted rather than assumed
-    -- and it is asserted to be `FAILED`. If someone completes the port, this
-    test **fails**, which is the intended alarm: parity being established is a
-    claim that has to be made in the docs, in the same change, not discovered by
-    a green build.
+    The alarm was that the *previous* version of this test fails when parity
+    becomes `AGREED`. It did. That is the mechanism working, and the answer is
+    to say what is now true rather than to relax the assertion.
+
+    ## What `AGREED` does and does not mean
+
+    It means the two implementations agree on the declared `SCOPE`, on the
+    supplied cases, and nothing else. It is not a proof of equivalence and it
+    says nothing about inputs outside the case set. `report.caveats` says so
+    in the payload, and this test asserts the caveats are still there -- a
+    green build must not be able to quietly stop carrying them.
     """
     report = run()
-    assert report.status == FAILED, (
-        f"parity status is {report.status}; if the port is now complete the docs "
-        f"must be updated in this same change to say so"
+    assert report.status == AGREED, (
+        f"parity status is {report.status}; if the port has regressed the sidecars "
+        f"must be rebuilt, and if the case set changed the docs must say so in the "
+        f"same change"
     )
-    assert report.claims_parity is False
-    assert "Parity is not established" in report.claim_text
+    assert report.claims_parity is True
+    assert "agreement on the supplied cases" in report.claim_text
+    # "not a general proof of equivalence" travels with the verdict.
+    assert "not a general proof of equivalence" in report.claim_text
+
+    # And the caveats that keep the claim from being read as more than it is.
+    joined = " ".join(report.caveats).lower()
+    for required in ("scope", "tolerance", "order", "outcomes"):
+        assert required in joined, f"the AGREED run dropped the {required!r} caveat"
+    assert any("not a proof" in c for c in report.caveats)
+
+    # No case may be silently un-compared now that all three name a sidecar.
+    assert len(report.compared) == len(report.results) == 3
+    assert report.counts()[MQL5_ABSENT] == 0
+    assert report.counts()[MATCH] == 3
 
 
 def test_agreement_needs_every_case_to_have_been_compared(tmp_path: Path) -> None:
@@ -672,27 +701,48 @@ def test_the_report_serialises_with_its_verdict_attached() -> None:
     consumer cannot read the case list and miss the verdict."""
     payload = run().to_dict()
     assert payload["schema"] == SCHEMA_VERSION
-    assert payload["status"] == FAILED
-    assert payload["claims_parity"] is False
-    assert payload["compared_cases"] == 1
+    assert payload["status"] == AGREED
+    assert payload["claims_parity"] is True
+    # Every case names a sidecar, because a real build has produced one for
+    # each of them. Nothing may be `MQL5_ABSENT` any more, and a case set where
+    # one is would be a case that is silently not being tested.
+    assert payload["compared_cases"] == len(CASES)
+    assert payload["counts"][MQL5_ABSENT] == 0
     assert set(payload["counts"]) >= {MQL5_ABSENT, MISMATCH, "MATCH"}
 
 
 def test_the_ci_flag_matches_the_shipped_state() -> None:
-    """The shipped state is `FAILED`, so CI may only soften it via `--allow-partial`.
+    """The shipped state is `AGREED`, so CI must run with **no** softening flag.
 
-    `--allow-unverified` covers the `UNVERIFIED` state and nothing else. The
-    port is compared-and-disagreeing now, so CI uses `--allow-partial`, which
-    suppresses a disagreement **only** outside the groups the sidecar declares as
-    ported. Linking the two in both directions is the point: a test that only
-    checked the flag works would let CI keep passing over a real disagreement.
+    ## The history, and why this test exists at all
 
-    When the port completes and the status becomes `AGREED`, this fails and
-    `--allow-partial` has to come out of CI in the same change.
+    CI has been through three states, and each one had a flag that was
+    correct for it and only for it:
+
+    | Shipped state | Flag | Why |
+    |---|---|---|
+    | `UNVERIFIED` | `--allow-unverified` | nothing had ever been compared |
+    | `FAILED` | `--allow-partial` | one case compared, disagreeing outside the declared groups |
+    | `AGREED` | **none** | every case compared, every leaf agreed |
+
+    `--allow-partial` is now a flag that quietly does nothing: there is no
+    disagreement left for it to suppress, and `AB_PORTED_GROUPS` names every
+    group in `SCOPE`, so there is no group a disagreement could hide in either.
+    Leaving it would be a claim that a guard exists when none does.
+
+    `--allow-unverified` was removed for the same reason one state earlier, and
+    the assertion that it stays out is kept — a flag that does nothing is worse
+    than no flag, because a reader assumes it is load-bearing.
+
+    The other direction is covered by `test_allow_partial_does_not_suppress_a_
+    regression`, which keeps proving the gate *can* still catch a real
+    regression. That test is deliberately left in place after the flag leaves
+    CI: the gate is a property of the harness, not of the current state, and a
+    future partial port would need it back.
     """
     ci_text = CI.read_text(encoding="utf-8")
     status = run().status
-    assert status == FAILED, f"this test's premise is a FAILED state, not {status}"
+    assert status == AGREED, f"this test's premise is an AGREED state, not {status}"
 
     # Look for the flag as an *invocation*, not as a mention. A prose reference
     # in a comment explaining what the flag replaced is documentation, and
@@ -702,15 +752,45 @@ def test_the_ci_flag_matches_the_shipped_state() -> None:
     invokes_unverified = bool(re.search(r"^\s*python -m tests\.parity\.runner .*--allow-unverified",
                                         ci_text, re.MULTILINE))
 
-    assert invokes_partial, (
-        "the shipped state is FAILED, so CI needs --allow-partial; if parity is now "
-        "established, remove the flag instead and update this test"
+    assert not invokes_partial, (
+        "parity is established, so --allow-partial has nothing left to suppress "
+        "and is a guard that does not guard; remove it from ci.yml"
     )
     assert not invokes_unverified, (
-        "--allow-unverified covers only UNVERIFIED, which is no longer the state; "
+        "--allow-unverified covers only UNVERIFIED, which is not the state; "
         "leaving it would be a flag that quietly does nothing"
     )
-    assert _main([]) == EXIT_FAILED, "without any flag a FAILED run must not exit 0"
+    # With no flag, the shipped AGREED state exits 0...
+    assert _main([]) == EXIT_AGREED, (
+        "an unflagged run of the shipped AGREED state must exit 0, or removing "
+        "the flags has left a step that cannot pass"
+    )
+
+    # ...and a real disagreement still exits non-zero. This is the half that
+    # makes removing the flags safe rather than merely tidy: the CI step is
+    # only able to fail if something still fails it, and with the flags gone
+    # that something has to be an actual disagreement.
+    #
+    # A sidecar whose `atr` is perturbed by 1% is used rather than a
+    # hand-built one, so the probe goes through the whole pipeline -- the
+    # loader, the comparator and the exit-code mapping -- and not just the
+    # part being asserted.
+    tmp = VECTORS_DIR.with_name("mql5_ci_flag_probe")
+    tmp.mkdir(exist_ok=True)
+    try:
+        for name in sorted(p.name for p in VECTORS_DIR.glob("*.mql5.json")):
+            payload = json.loads((VECTORS_DIR / name).read_text(encoding="utf-8"))
+            payload["vector"]["atr"] = payload["vector"]["atr"] * 1.01
+            (tmp / name).write_text(dump(payload), encoding="utf-8")
+        assert _main(["--vectors", str(tmp)]) == EXIT_FAILED, (
+            "an unflagged run over a perturbed sidecar must exit non-zero; if it "
+            "does not, removing the softening flags has removed the only thing "
+            "that made this CI step able to fail"
+        )
+    finally:
+        for leftover in tmp.glob("*"):
+            leftover.unlink()
+        tmp.rmdir()
     assert _main(["--allow-partial"]) == EXIT_AGREED, (
         "with --allow-partial the honest partial state must exit 0"
     )
@@ -777,11 +857,42 @@ def test_a_verified_run_exits_zero_and_a_failed_one_exits_one(tmp_path: Path) ->
 
 def test_the_document_states_the_honest_status() -> None:
     """`RPC-18`'s pattern applied to this document: it makes a claim about the
-    number of comparisons performed, and the number is checkable."""
+    number of comparisons performed, and the number is checkable.
+
+    ## The assertion is derived, not typed out
+
+    Earlier versions of this test hard-coded `"Zero MQL5 sidecars exist"` and
+    `"Zero cases have been compared"`, and each had to be hand-edited when the
+    state changed. That is a drift risk: the strings and the run could disagree
+    and the test would only notice if someone remembered to update it.
+
+    So the numbers are now taken from the run itself. The document has to agree
+    with `run()` about how many sidecars exist and how many cases were compared,
+    and about the verdict, and it has to carry the limits of that verdict. A
+    document that says `AGREED` without saying what `AGREED` is not has made the
+    claim this project refuses to make.
+    """
     text = DOC.read_text(encoding="utf-8")
-    assert "Zero MQL5 sidecars exist" in text
-    assert "Zero cases have been compared" in text
-    assert "No parity claim is made anywhere in this project" in text
+    report = run()
+
+    shipped = sorted(p.name for p in VECTORS_DIR.glob("*.mql5.json"))
+    assert f"**{len(shipped)} MQL5 sidecars exist" in text, (
+        f"the document must state that {len(shipped)} sidecars exist; it was "
+        f"updated when the state changed and this is the check that it was not "
+        f"updated when it was not"
+    )
+    assert f"**All {len(report.compared)} cases have been compared" in text, (
+        "the document must state how many cases were actually compared"
+    )
+    assert report.status == AGREED
+    assert "status: AGREED" in text, "the document must show the verdict a run produces"
+
+    # The claim that matters most, and the one an `AGREED` run is most likely to
+    # be misread as: an agreement between two implementations of the same code is
+    # not a claim about the market, and nothing here has been validated.
+    assert "No claim about the market is made anywhere in this project" in text
+    assert "validated against" in text
+
     assert SCHEMA_VERSION in text
     for group in SCOPE:
         assert group in text, f"the document never names the scope group {group!r}"
@@ -839,7 +950,11 @@ def test_the_mql5_directory_holds_exactly_the_sidecars_this_project_produced() -
     assert (VECTORS_DIR / "README.md").is_file()
 
     present = sorted(p.name for p in VECTORS_DIR.glob("*.json"))
-    assert present == ["parity_range_breakout_001.mql5.json"], (
+    assert present == [
+        "parity_bear_rally_001.mql5.json",
+        "parity_range_breakout_001.mql5.json",
+        "parity_trend_001.mql5.json",
+    ], (
         f"the sidecar inventory changed to {present}; update this test and the "
         f"docs in the same change, because each new sidecar is a new claim"
     )
@@ -896,3 +1011,19 @@ def test_the_field_count_is_pinned_so_the_docs_cannot_say_thirty_three() -> None
         "CODE_OR_NULL": 1,
     }, f"the contract's class composition changed: {dict(tally)}"
     assert sum(tally.values()) == len(FIELD_CLASSES)
+
+    # The count is quoted in prose in four places, and this test used to check
+    # three of them. The README was the fourth, and it stayed wrong ("33") after
+    # the others had been fixed -- which is exactly the drift this test exists
+    # to prevent, recurring one file over. So the set of documents is derived
+    # rather than listed: anything that quotes a "-field canonical vector" has
+    # to agree.
+    quoted = re.compile(r"(\d+)[- ]field canonical vector|canonical vector of (\d+)")
+    for doc in (ROADMAP, DOC, ADAPTER, REPO / "README.md"):
+        text = doc.read_text(encoding="utf-8")
+        for found in quoted.finditer(text):
+            stated = found.group(1) or found.group(2)
+            assert int(stated) == len(FIELD_CLASSES), (
+                f"{doc.name} calls it a {stated}-field canonical vector; "
+                f"FIELD_CLASSES has {len(FIELD_CLASSES)}"
+            )
