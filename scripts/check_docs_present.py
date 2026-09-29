@@ -63,6 +63,7 @@ REQUIRED_DOCS: tuple[tuple[str, int], ...] = (
     ("docs/algorithms/BACKTESTING.md", 18),
     ("docs/algorithms/VALIDATION.md", 19),
     ("docs/PYTHON_MQL5_PARITY.md", 20),
+    ("docs/algorithms/MT5_ADAPTER.md", 21),
 )
 
 # Only documents owed by a phase that has NOT been completed yet.

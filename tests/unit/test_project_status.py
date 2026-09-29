@@ -42,6 +42,16 @@ README_FA = REPO / "README_FA.md"
 LAST_COMPLETE_PHASE = 20
 LAST_PHASE = 23
 
+#: The phase currently in progress, which may own a document that is already
+#: required because the part of it that shipped needs documenting.
+#:
+#: Phase 21 is the case in point: the MT5 adapter, the session and the freeze are
+#: built and tested, so `docs/algorithms/MT5_ADAPTER.md` is required now — while
+#: the MQL5 port it also documents is blocked on MetaEditor and the phase stays
+#: unchecked. A document for work that has *not* started is still refused here; the
+#: distinction is between a phase in flight and a phase not yet begun.
+IN_PROGRESS_PHASE = 21
+
 MARKDOWN = sorted(
     p
     for p in REPO.rglob("*.md")
@@ -310,8 +320,9 @@ def test_the_required_document_manifest_has_no_orphans_or_ghost_owners() -> None
 
     for path, phase in module.REQUIRED_DOCS:
         assert (REPO / path).is_file(), f"required but missing: {path}"
-        assert phase <= LAST_COMPLETE_PHASE, (
-            f"{path} is required but owned by unfinished Phase {phase}"
+        assert phase <= IN_PROGRESS_PHASE, (
+            f"{path} is required but owned by a phase that has not started; a "
+            f"required document must be on disk now"
         )
 
     # Pending means pending. A path in PENDING_DOCS that is already on disk is the
