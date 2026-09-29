@@ -22,8 +22,9 @@ different claims:
 ## Where the project stands
 
 **23 of 24 phases are complete.** Phases 0 through 20, 22 and 23 are done and
-verified by the test suite. Phase 21 is the only one that remains, and it is
-partially delivered and blocked on hardware.
+verified by the test suite. Phase 21 is the only one that remains: its adapter,
+freeze and session are shipped, and its MQL5 port is **unwritten** — which, as of
+the Phase 23 follow-up, is a statement about effort rather than about tooling.
 
 ### The engine is finished; the platform it runs on is not
 
@@ -55,18 +56,21 @@ tested. The MQL5 port is not, and cannot be from where this was written.**
 
 | Phase | What it adds | State |
 |---|---|---|
-| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **blocked** | Needs MetaEditor and a terminal to write *and validate* a second implementation — which is what Phase 20 defined the contract for |
+| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **unwritten** | The toolchain is verified working end to end; the port itself has not been written, which is what Phase 20 defined the contract for |
 | **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | **Complete.** Needed a stable serialized contract to hand an agent, and it now has one |
 | **23 — Bilingual Documentation** | `docs/fa/`, and a test that keeps the two trees from drifting | **Complete.** An honest index plus the three documents whose claims a reader could act on |
 
-The port is not a deferral dressed up as a plan. An MQL5 implementation of this
-scope — eleven detectors, the market-state classifier, the plan geometry and the
-decision engine, reproducing a 33-field canonical vector — can only be *validated*
-by compiling it with MetaEditor and running it against a live terminal. Neither
-exists on the machine this was written on. Shipping thousands of lines of
-never-compiled MQL5, or hand-writing a `"producer": "mql5"` sidecar to turn the
-harness green, would put a false claim in the one place this project is most careful
-about. So the parity status is unchanged and honest: **`UNVERIFIED`**.
+The port is not a deferral dressed up as a plan, and it is **not blocked**. An MQL5
+implementation of this scope — eleven detectors, the market-state classifier, the
+plan geometry and the decision engine, reproducing a 33-field canonical vector — has
+simply not been written. The toolchain to write it with is verified working:
+MetaEditor compiles, the Strategy Tester runs headlessly, and an EA's output is
+readable from Python. `MT5_ADAPTER.md` §5 has the loop.
+
+What would still be wrong is shipping never-compiled MQL5, or hand-writing a
+`"producer": "mql5"` sidecar to turn the harness green — the second would be
+precisely the dishonesty the Phase 20 harness exists to detect. So the parity
+status is unchanged and honest: **`UNVERIFIED`**.
 
 `docs/algorithms/MT5_ADAPTER.md` §5 lists exactly what a real completion still owes,
 and `tests/unit/test_phase21_adapter.py` asserts the empty `mql5/` state, so the day
@@ -415,7 +419,18 @@ reader of that phase will open first.
   checkbox stays open, and the reason is stated rather than negotiated.
   - **Objective**: MQL5 include headers, MT5 python connector, indicator & EA templates.
   - **Deliverable**: `src/albrooks/adapters/mt5/` **shipped**;
-    `mql5/Include/AlBrooks/` **blocked on MetaEditor**.
+    `mql5/Include/AlBrooks/` **unwritten**.
+  - **The "blocked on MetaEditor" claim was wrong, and was never checked.** Phase 21
+    recorded the port as blocked on hardware. It is not: MetaEditor 5.0.0.6230
+    ships beside the terminal, compiles in about a second, and the Strategy
+    Tester runs headlessly. The whole loop was verified end to end on a throwaway
+    EA — compile, run, write a file, read it back from Python. The one
+    non-obvious requirement: `Login` and `Server` must be in **both** `[Common]`
+    (terminal login) and `[Tester]` (local agent authorisation); with them only in
+    `[Common]` the agent fails with `tester agent authorization error`.
+    **The port is unwritten, not blocked** — a very different statement, and the
+    one a reader of a roadmap deserves. `MT5_ADAPTER.md` §5 carries the same
+    correction.
   - **Shipped** — `src/albrooks/adapters/mt5/`: `MT5Feed` (the only module that
     names `MetaTrader5`, and it imports it lazily so the package imports on a
     machine with no terminal), `normalize_order()` for the series direction,
@@ -478,14 +493,15 @@ reader of that phase will open first.
     so `SessionResult.fade_source` says which reading is which and a test asserts
     **both**.
   - **Not shipped** — `mql5/Include/AlBrooks/`, and the sidecars that would fill the
-    parity harness's `mql5/` directory. **This is still blocked**, and running a
-    real terminal sharpened rather than removed the reason: a live Alpari MT5 build
-    6230 found three defects in 54 passing tests, so an MQL5 port validated only by
-    inspection would carry the same class of error at a larger scale.
-    `docs/PYTHON_MQL5_PARITY.md` §8 lists what it owes, and
-    `docs/algorithms/MT5_ADAPTER.md` §5 and §10 repeat it. A test asserts that
-    `mql5/` does not exist and that the parity run still reports `UNVERIFIED`, so
-    the day a real sidecar lands the documentation has to move in the same change.
+    parity harness's `mql5/` directory. **Nothing blocks writing it.** What the
+    live Alpari MT5 run *did* establish is that the toolchain has to be used
+    rather than trusted: three defects survived 54 passing tests, so a port written
+    and reviewed by inspection would carry the same class of error at ten times the
+    size. The loop to use is `MT5_ADAPTER.md` §5.
+    `docs/PYTHON_MQL5_PARITY.md` §8 lists the ordered work, and
+    `docs/algorithms/MT5_ADAPTER.md` §5 and §10 carry the same. A test asserts
+    that `mql5/` does not exist and that the parity run still reports `UNVERIFIED`,
+    so the day a real sidecar lands the documentation has to move in the same change.
 
 - [x] **Phase 22 — AI / LLM Interface**
   - **Objective**: Stable JSON serialization for LLM agents, diagnostic output, example script.

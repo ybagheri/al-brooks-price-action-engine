@@ -298,7 +298,21 @@ been statistically validated, and no performance claim is made.
   found" and "not implemented" are different statements.
 
 ### Known limitations
-- **Phase 21 is half delivered, and the missing half needs hardware.** The adapter,
+- **Phase 21 is half delivered, and the missing half needs *writing*, not hardware.**
+
+  **Correction.** This entry previously said the MQL5 port was "blocked on MetaEditor".
+  That was wrong, and it was never checked. MetaEditor 5.0.0.6230 ships beside the
+  terminal and compiles in about a second, and the Strategy Tester runs headlessly.
+  The whole loop was verified end to end on a throwaway EA: compile, run, write a
+  file, read it back from Python. The one non-obvious requirement is that `Login`
+  and `Server` must appear in **both** `[Common]` (so the terminal itself logs in)
+  and `[Tester]` (so the local agent authorises); with them only in `[Common]` the
+  agent fails with `tester agent authorization error`.
+
+  Recorded rather than quietly fixed, because an *unchecked* claim of a hardware
+  blocker is a roadmap entry nobody re-examines. It is the same failure as the
+  fake-driven adapter tests one level up: a claim about the world that nothing
+  checked. The adapter,
   the freeze and the stateful session are built and tested. `mql5/Include/AlBrooks/`
   is **not**, and cannot be from a machine with neither MetaEditor nor a MetaTrader
   terminal — an MQL5 port of eleven detectors, the market-state classifier, the plan

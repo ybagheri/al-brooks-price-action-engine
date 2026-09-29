@@ -180,13 +180,30 @@ look-ahead that *looks like a correct answer*. A caller who knows the period pas
 **`mql5/Include/AlBrooks/` does not exist.** No MQL5 build of this engine has been
 written.
 
-That is not an oversight and not a deferral dressed up as one. An MQL5 port of
-this scope — eleven detectors, a market-state classifier, the trade-plan geometry
-and the decision engine, all reproducing a 33-field canonical vector — can only be
-*validated* by compiling it with MetaEditor and running it against a live terminal.
-Neither exists on the machine this was written on, and the alternative — shipping
-thousands of lines of never-compiled MQL5 — would put unverified code in the
-repository under a name that implies the opposite.
+> **Correction, Phase 23 follow-up.** This section previously said the port was
+> **"blocked on MetaEditor and a terminal"**. That was **wrong, and it was never
+> checked.** MetaEditor 5.0.0.6230 ships in the same folder as the terminal, and
+> the full compile-and-run loop works headlessly:
+>
+> ```
+> MetaEditor64.exe /compile:<file>.mq5 /log:<log> /inc:<MQL5>      -> 0 errors, .ex5
+> terminal64.exe  /portable /config:<tester>.ini                      -> "last test passed"
+> ```
+>
+> The EA's files land in `Tester\Agent-127.0.0.1-3001\MQL5\Files\` and are
+> readable from Python. The one non-obvious requirement: the tester's `Login` and
+> `Server` must appear in **both** `[Common]` (so the terminal itself logs in) and
+> `[Tester]` (so the local agent authorises). With them only in `[Common]` the
+> agent fails with `tester agent authorization error`; with them in both, the
+> test runs and finishes.
+>
+> So the port is not blocked. It is **unwritten**, which is a different and much
+> less interesting statement. What follows is the ordered work, unchanged in
+> substance.
+
+An MQL5 port of this scope — eleven detectors, the market-state classifier, the
+trade-plan geometry and the decision engine, all reproducing a 33-field canonical
+vector — has simply not been written.
 
 So the consequences are stated rather than hidden:
 
@@ -196,9 +213,9 @@ So the consequences are stated rather than hidden:
 - **`--allow-unverified` is still in `.github/workflows/ci.yml`**, and
   `tests/unit/test_phase20_parity.py` still asserts the flag and the shipped state
   stay in step.
-- **No parity claim is made anywhere in this project.** The 640-test suite passing
-  says the Python engine is internally consistent. It says nothing about agreement
-  with a second implementation, because there is no second implementation.
+- **No parity claim is made anywhere in this project.** The suite passing says the
+  Python engine is internally consistent. It says nothing about agreement with a
+  second implementation, because there is no second implementation.
 
 A test in this phase's suite
 (`test_no_mql5_sidecar_exists_and_the_parity_run_still_says_unverified`) asserts

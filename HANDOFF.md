@@ -13,16 +13,18 @@ and 8 live-terminal checks pass when `ALBROOKS_MT5_PATH` is set.
 
 ## Where this stands, in four lines
 
-- **The engine is finished.** Phases 0-20 and 22 are complete and tested: bars
-  through features, structures, context, eleven detectors, evidence, trade plans,
-  a gated decision, a multi-timeframe veto, backtesting, golden fixtures, an MT5
-  adapter, and an LLM-facing serialization.
-- **One phase is blocked on hardware, not on effort.** Phase 21's MQL5 port needs
-  MetaEditor and a terminal. `mql5/` does not exist, `tests/parity/mql5/` is empty,
-  and parity reports `UNVERIFIED` — a status distinct from both a pass and a
-  failure, because nothing was compared.
-- **One phase is documentation-only.** Phase 23 expands the existing English and
-  Persian documents and owes no new code.
+- **The engine is finished.** Phases 0-20, 22 and 23 are complete and tested:
+  bars through features, structures, context, eleven detectors, evidence, trade
+  plans, a gated decision, a multi-timeframe veto, backtesting, golden fixtures,
+  an MT5 adapter, an LLM-facing serialization, and a Persian documentation tree.
+- **One phase remains, and it is blocked on *writing*, not on tooling.**
+  Phase 21's MQL5 port has not been written. This was previously recorded as
+  "blocked on MetaEditor" — **that was wrong and was never checked.** The
+  toolchain is verified working end to end: MetaEditor compiles, the Strategy
+  Tester runs headlessly, and an EA's output is readable from Python. See
+  `MT5_ADAPTER.md` §5 for the loop. `mql5/` does not exist,
+  `tests/parity/mql5/` is empty, and parity reports `UNVERIFIED` — a status
+  distinct from both a pass and a failure, because nothing was compared.
 - **Nothing here is validated.** No number in this project is a probability, a win
   rate or an edge. `docs/algorithms/VALIDATION.md` §9 lists the four missing
   ingredients, the largest of which is a stated null. Any change that makes this

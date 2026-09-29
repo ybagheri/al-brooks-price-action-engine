@@ -270,7 +270,7 @@ established. No MQL5 sidecar has been supplied.
 
 **Status: partially done.** Items 2 and the adapter half of item 1 shipped with
 `src/albrooks/adapters/mt5/`; the MQL5 build itself did not, because writing an
-MQL5 port of this scope and *validating* it needs MetaEditor and a live MetaTrader
+MQL5 port of this scope had not been written when this line was first
 terminal, neither of which was available. So **zero of three cases have been
 compared and §7 below is still the current state.** `docs/algorithms/MT5_ADAPTER.md`
 §5 has the same list from the adapter's side.
