@@ -1,94 +1,102 @@
-# Handoff — Phase 20
+# Handoff — Phase 21 (partial)
 
 A point-in-time note for whoever picks this up next. **If this file disagrees with
 `ROADMAP.md`, `ROADMAP.md` is right**, and this file should be deleted rather than
 patched. It is not a phase deliverable and no test reads it.
 
-Last commit: `feat(parity): add the Python/MQL5 parity contract and harness (Phase 20)`.
-Full suite: 640 tests, `ruff` and `mypy` clean, both `scripts/` checks passing.
+Full suite: 700 tests, `ruff` and `mypy` clean, both `scripts/` checks passing.
 
-## What shipped
+## The thing to know first: the fake was wrong and a real terminal said so
 
-Phase 20 built the **contract** an MQL5 port would be compared against. It
-compared nothing, and says so.
+The adapter was validated against an injected fake, and **all 54 tests passed while
+three live defects were present.** A real Alpari MT5 (build 6230,
+`MetaTrader5` 5.0.6180) then found:
 
-| Piece | What it is |
-|---|---|
-| `tests/parity/contract.py` | The canonical vector: `SCOPE` (8 groups), `FIELD_CLASSES` (33 leaves), the per-leaf comparison class, the tolerance, and the flattening that makes a missing field detectable |
-| `tests/parity/compare.py` | Field-by-field comparison, every difference reported with a path and both values |
-| `tests/parity/runner.py` | Case loading, the report, the seven case statuses, and the command line |
-| `tests/parity/cases/` | Three hand-drawn cases, each naming the divergence it exists to catch |
-| `tests/parity/mql5/` | Where the first sidecar goes. **Empty.** |
-| `tests/parity/reference/` | Python-produced vectors, used to exercise the comparator. **Not parity evidence.** |
-| `docs/PYTHON_MQL5_PARITY.md` | The specification, and what Phase 21 owes |
-| `tests/unit/test_phase20_parity.py` | 57 tests |
+1. **`copy_rates` does not exist** in the Python bindings — only
+   `copy_rates_from_pos`, `copy_rates_from`, `copy_rates_range`. The fake
+   implemented it, because the MQL5 documentation names it.
+2. **The payload is oldest-first**, not newest-first. The original check *refused*
+   anything not newest-first — the MQL5 native convention, not the bindings' — so it
+   would have raised on every real payload. The property that matters is
+   **monotonicity, not direction**; both are now normalised and the direction
+   observed is returned rather than discarded.
+3. **The server clock ran +3.099 hours ahead of the local one.** Over a 50-bar M15
+   window the local clock discarded 13 closed bars. The failure is *directional*: a
+   local clock behind the server over-freezes, and one ahead would keep a
+   still-forming bar — a look-ahead.
 
-## The state a reader must not misread
+All three are fixed. The transferable lesson is recorded in
+`docs/algorithms/MT5_ADAPTER.md` §10: **a fake encodes the author's assumptions.**
+Fifty-four green tests certified that the code matched a mental model of MetaTrader,
+which is not the claim "this works against MetaTrader".
 
-- **No MQL5 build of this engine has been written.** Zero of three cases have been
-  compared and **no parity claim is made anywhere in this project**.
-- A run today reports `UNVERIFIED` — a status distinct from both a pass and a
-  failure, because no comparison happened:
+`tests/integration/test_phase21_live_mt5.py` is the correction — 8 read-only checks
+covering exactly what a fake cannot. They **skip** without a terminal:
 
-  ```bash
-  python -m tests.parity.runner
-  ```
+```bat
+set ALBROOKS_MT5_PATH="C:\Users\<you>\AppData\Roaming\Alpari MT5_4\terminal64.exe"
+python -m pytest tests\integration\test_phase21_live_mt5.py -v -rs
+```
 
-- The harness is built so this state cannot be mistaken for a result. A sidecar
-  whose `producer` is not `mql5` is not counted at all, which is what makes the
-  committed Python-produced vectors safe to keep. A sidecar covering a strict
-  subset of the scope is refused. A sidecar written against another schema is
-  refused. `AGREED` requires **every** case to have been compared, so a
-  half-filled run is `FAILED` rather than a pass a boolean cannot qualify.
+**A skip is not a pass.** It means the file did not run.
 
-## Why the phase was split
+## What Phase 21 delivered, and what it did not
 
-The roadmap had a cycle: Phase 20 needed an MQL5 build to compare against, and
-Phase 21 depended on Phase 20. Neither could start. Phase 20 therefore owns the
-*contract* and Phase 21 owns the *fill*. The alternative — port first, comparison
-second — means writing the specification from the port's own behaviour, which is
-how a parity harness ends up asserting only what both sides already agree on.
+**Delivered** — `src/albrooks/adapters/mt5/`, `docs/algorithms/MT5_ADAPTER.md`,
+54 tests. The two obligations `NON_REPAINT_CONTRACT.md` §4 assigns to an adapter,
+plus the stateful caller Phase 19 deferred to.
 
-## The next step
+**Not delivered** — `mql5/Include/AlBrooks/`, and therefore the sidecars that
+would fill `tests/parity/mql5/`. **This is blocked on hardware, not on effort:** an
+MQL5 port of eleven detectors, the market-state classifier, the plan geometry and
+the decision engine can only be *validated* by compiling it with MetaEditor and
+running it against a live terminal. Neither exists on the machine this was written
+on. The checkbox stays open and parity still reports `UNVERIFIED`.
 
-**Phase 21 — MT5 Adapter & MQL5 Layer.** `src/albrooks/adapters/mt5/` and
-`mql5/Include/AlBrooks/`, per `docs/PYTHON_MQL5_PARITY.md` §8. In order:
+The temptation to close the gap by hand-writing a `"producer": "mql5"` sidecar is
+the one thing not to do. It would turn the Phase 20 harness into a decoration, and
+`docs/PYTHON_MQL5_PARITY.md` §6 exists specifically to make that impossible.
 
-1. Implement the scope in MQL5. The four places a port most easily diverges, and
-   the reason each is in scope, are the **ATR seed**, the **swing tie-break**, the
-   **`BarSeries` direction** (MT5 is newest-first, this engine oldest-first), and
-   the **null convention**.
-2. Freeze the live series in the adapter. `NON_REPAINT_CONTRACT.md` §4 makes that
-   the adapter's obligation; an adapter that passes a forming bar will never agree
-   with a Python backtest, for reasons that have nothing to do with the port.
-3. Write one sidecar per case into `tests/parity/mql5/`, set each case's
+## The three things worth knowing before touching this code
+
+- **The freeze decides by time, not by position, and on the *terminal's* clock.**
+  `bar.time + period <= now`, because `Bar.time` is the *open* time. "Drop the last
+  row" is wrong at every bar boundary and silently wrong across a weekend. The
+  `now` must be the server clock — the local one was 3.1 hours off — and
+  `FreezeReport.clock` records which was used, so a degradation is visible.
+- **Both MetaTrader directions are accepted; only a non-monotonic payload is
+  refused.** The Python bindings are oldest-first and MQL5 native is newest-first,
+  so `normalize_order()` handles either and returns which it saw. Sorting a
+  mis-ordered payload would hide the caller's bug behind a working result, which is
+  the failure this whole layer exists to prevent — but *refusing a legitimate
+  convention* is the same mistake pointed the other way.
+- **The session re-derives; it does not accumulate.** The obvious implementation of
+  an `AnalysisSession` — keep the fade setups in `self`, advance one bar per call —
+  would break `RPC-1`. A session that has seen bars 21..40 and then answers for bar
+  20 holds state derived from bars the caller declared unavailable. So
+  `track_fading_measured_moves` is re-run on the frozen window every call, and the
+  only state kept is the previous result. The test analyses the *longer* series
+  first, so a stateful implementation would have to leak deliberately to pass.
+- **The pipeline still reports `PROJECTED` for a fade, deliberately.** The registry
+  is stateless and that is its contract. The session adds a caller rather than
+  editing the registry, and `SessionResult.fade_source` says which reading is
+  which. A test asserts **both** readings, so the change cannot quietly become
+  "the pipeline now says something else".
+
+## The next steps, in order
+
+1. **Phase 21, completed** — on a machine with MetaEditor. Implement `SCOPE` in
+   MQL5; the four places a port most easily diverges are the **ATR seed**, the
+   **swing tie-break**, the **`BarSeries` direction** and the **null convention**.
+   The live-terminal run above is the argument for doing this *against* a real
+   terminal rather than by inspection: three defects survived 54 green tests, and an
+   MQL5 port validated only by reading would carry the same class of error at ten
+   times the size.
+   Write one sidecar per case into `tests/parity/mql5/`, set each case's
    `mql5_vector`, and remove `--allow-unverified` from `.github/workflows/ci.yml`.
-   A test links the two: it fails if the flag is still there once the first real
-   sidecar lands.
-4. **Record the disagreements the first run produces.** The expectation is that it
-   fails. A harness whose first recorded result is a clean pass should be checked
-   for having compared nothing.
-
-Phase 21 also closes a finding Phase 19 recorded rather than fixed: the fade
-lifecycle is unreachable through the pipeline, because `track_fading_measured_moves`
-is never called by the engine. Giving a stateless detector a stateful
-responsibility belongs with a stateful caller, which is the adapter.
-
-After that: **Phase 22** (AI/LLM interface, owed
-`src/albrooks/serialization/json.py`, `examples/llm_analysis.py` and
-`docs/algorithms/AI_INTERFACE.md`) and **Phase 23** (bilingual documentation,
-which owes no new code path).
-
-## Two things worth knowing before touching this code
-
-- **`bars_processed` is the one field in scope that is not closed-bar stable.** It
-  counts the bars the run was given, so appending future bars moves it. It is
-  deliberately in the scope anyway: the obligation it imposes is an input
-  condition rather than a behavioural claim, and a port that silently truncated
-  its series is exactly what it exists to catch. The closed-bar test excludes it
-  by name.
-- **`--write-reference` exists here and is forbidden for golden fixtures.** A
-  golden expectation is a claim about what is *right*, and automating it removes
-  the only part worth having. A reference vector is a claim about what this code
-  currently prints, and every file it writes declares `producer: "python"`.
-  `tests/parity/` pins no values; `tests/fixtures/golden/` is the regression suite.
+   **Record the disagreements the first run produces** — the expectation is that it
+   fails, and a harness whose first recorded result is a clean pass should be
+   checked for having compared nothing.
+2. **Phase 22** — `src/albrooks/serialization/json.py`, `examples/llm_analysis.py`
+   and `docs/algorithms/AI_INTERFACE.md`. Needs no external tooling.
+3. **Phase 23** — bilingual documentation, which owes no new code path.

@@ -249,6 +249,11 @@ report cannot leave without them.
 **Zero MQL5 sidecars exist. Zero cases have been compared.**
 **No parity claim is made anywhere in this project.**
 
+Phase 21 delivered the Python-side adapter, the freeze and a stateful session
+(`docs/algorithms/MT5_ADAPTER.md`), and **none of that changes this section.** An
+adapter that reads bars correctly on this side is not a second implementation, and
+the harness compares implementations.
+
 A run today:
 
 ```text
@@ -263,19 +268,37 @@ established. No MQL5 sidecar has been supplied.
 
 ## 8. What Phase 21 has to do
 
+**Status: partially done.** Items 2 and the adapter half of item 1 shipped with
+`src/albrooks/adapters/mt5/`; the MQL5 build itself did not, because writing an
+MQL5 port of this scope and *validating* it needs MetaEditor and a live MetaTrader
+terminal, neither of which was available. So **zero of three cases have been
+compared and §7 below is still the current state.** `docs/algorithms/MT5_ADAPTER.md`
+§5 has the same list from the adapter's side.
+
 1. Write `mql5/Include/AlBrooks/` implementing `SCOPE`. The port is not free: an
    `ATR` seed, a swing tie-break, a `BarSeries` direction and a null convention
    are the four places a port most easily diverges, and each is in scope for
-   exactly that reason.
+   exactly that reason. Two of the four are now *half*-addressed on the Python
+   side — `to_oldest_first()` refuses a mis-ordered payload rather than sorting it,
+   and the ATR seed is Wilder's — and **neither is a parity result**: an MQL5 side
+   still has to reproduce them, and reproducing them is what this harness exists to
+   check.
 2. Freeze the live series in the adapter. `NON_REPAINT_CONTRACT.md` §4 makes
    freezing the adapter's obligation, not the engine's, and an adapter that passes
    a forming bar produces numbers that will never agree with a Python backtest
-   for reasons that have nothing to do with the port.
+   for reasons that have nothing to do with the port. **Done on the Python side** —
+   `series.freeze_closed_bars()` decides by *time*
+   (`bar.time + period <= now`, since `Bar.time` is the open time) rather than by
+   position, which is wrong at every bar boundary and silently wrong across a
+   session break; see `docs/algorithms/MT5_ADAPTER.md` §3. The MQL5 side owes the
+   same obligation.
 3. Write one sidecar per case into `tests/parity/mql5/`, set each case's
    `mql5_vector`, and remove `--allow-unverified` from CI.
 4. Report the disagreements that appear. A first run will not be clean, and a
    harness whose first recorded result is a pass should be checked for having
-   compared nothing.
+   compared nothing. **A hand-written `"producer": "mql5"` file would be worse than
+   no MQL5 code at all**, because the harness would then be reporting an agreement
+   it never measured.
 
 ## 9. Source
 

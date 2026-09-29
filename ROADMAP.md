@@ -46,15 +46,29 @@ bars -> features -> swings/legs -> context -> structures -> setups (11 detectors
 | Backtesting interface | Complete — path geometry and outcome, **no P&L by design** |
 | Golden fixtures | Complete — five hand-authored charts, hand-derived expectations |
 
-### What is not built
+### Phase 21 is half delivered, and the half that is missing needs hardware
 
-Three phases remain, and they are all platform work rather than analysis work:
+**The MT5 adapter, the forming-bar freeze and the stateful session are built and
+tested. The MQL5 port is not, and cannot be from where this was written.**
 
-| Phase | What it adds | Why it is last |
+| Phase | What it adds | State |
 |---|---|---|
-| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/`, `mql5/Include/AlBrooks/` — and the first sidecars that fill the Phase 20 harness | Needs a second implementation to compare against, which is what Phase 20 defined the contract for |
-| **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | Needs a stable serialized contract to hand an agent |
-| **23 — Bilingual Documentation** | Expanded English and Persian documentation | Documentation-only; owes no new code path |
+| **21 — MT5 Adapter & MQL5 Layer** | `src/albrooks/adapters/mt5/` **shipped**; `mql5/Include/AlBrooks/` **blocked** | Needs MetaEditor and a terminal to write *and validate* a second implementation — which is what Phase 20 defined the contract for |
+| **22 — AI / LLM Interface** | `src/albrooks/serialization/json.py`, `examples/llm_analysis.py` | Not started. Needs a stable serialized contract to hand an agent |
+| **23 — Bilingual Documentation** | Expanded English and Persian documentation | Not started. Documentation-only; owes no new code path |
+
+The port is not a deferral dressed up as a plan. An MQL5 implementation of this
+scope — eleven detectors, the market-state classifier, the plan geometry and the
+decision engine, reproducing a 33-field canonical vector — can only be *validated*
+by compiling it with MetaEditor and running it against a live terminal. Neither
+exists on the machine this was written on. Shipping thousands of lines of
+never-compiled MQL5, or hand-writing a `"producer": "mql5"` sidecar to turn the
+harness green, would put a false claim in the one place this project is most careful
+about. So the parity status is unchanged and honest: **`UNVERIFIED`**.
+
+`docs/algorithms/MT5_ADAPTER.md` §5 lists exactly what a real completion still owes,
+and `tests/unit/test_phase21_adapter.py` asserts the empty `mql5/` state, so the day
+a real sidecar lands the documentation has to move in the same change.
 
 ### The one thing that is not on this list
 
@@ -395,14 +409,81 @@ reader of that phase will open first.
   - `docs/PYTHON_MQL5_PARITY.md`, `tests/parity/README.md`,
     `tests/unit/test_phase20_parity.py` — 56 tests, and a CI step.
 
-- [ ] **Phase 21 — MT5 Adapter & MQL5 Layer**
+- [ ] **Phase 21 — MT5 Adapter & MQL5 Layer** — **partially delivered.** The
+  checkbox stays open, and the reason is stated rather than negotiated.
   - **Objective**: MQL5 include headers, MT5 python connector, indicator & EA templates.
-  - **Deliverable**: `src/albrooks/adapters/mt5/`, `mql5/Include/AlBrooks/`.
-  - **Also closes two things Phase 20 left open**: the fade lifecycle's
-    unreachable state, which `track_fading_measured_moves` fixes once a
-    stateful caller exists, and the parity harness's `mql5/` directory, which
-    becomes the first thing to put something in it. `docs/PYTHON_MQL5_PARITY.md`
-    §8 lists what it owes.
+  - **Deliverable**: `src/albrooks/adapters/mt5/` **shipped**;
+    `mql5/Include/AlBrooks/` **blocked on MetaEditor**.
+  - **Shipped** — `src/albrooks/adapters/mt5/`: `MT5Feed` (the only module that
+    names `MetaTrader5`, and it imports it lazily so the package imports on a
+    machine with no terminal), `normalize_order()` for the series direction,
+    `freeze_closed_bars()` for the forming bar, `ENUM_TIMEFRAMES` decoding, and
+    `AnalysisSession`. `docs/algorithms/MT5_ADAPTER.md`, 60 unit tests and 8
+    read-only live-terminal checks.
+  - **Corrected against a live terminal, and the correction is part of the
+    deliverable.** All 54 original tests passed while three defects were live:
+    `copy_rates` **does not exist** in the Python bindings, the payload is
+    **oldest-first** rather than newest-first, and the server clock ran **+3.1
+    hours** ahead of the local one, discarding 13 of 50 M15 bars. The general
+    lesson is recorded in `MT5_ADAPTER.md` §10 because it is the more useful half:
+    **a fake encodes the author's assumptions**, and fifty-four green tests
+    certified agreement with a mental model of MetaTrader rather than with
+    MetaTrader. `tests/integration/test_phase21_live_mt5.py` now checks what a fake
+    cannot — which functions exist, which direction arrives, and whether `RPC-2`
+    holds on a real series. It skips without a terminal, and a skip is not a pass.
+  - **The direction check was the wrong one.** It refused anything that was not
+    newest-first, which is the MQL5 native convention rather than the bindings' —
+    so it would have raised on every real payload. What matters is **monotonicity,
+    not direction**: both single directions are legitimate conventions and both are
+    now normalised, with the direction observed *returned* rather than discarded. A
+    payload that is neither ascending nor descending is still refused, because
+    inferring the caller's intent from a broken sequence is the guess that produces
+    a confident wrong answer.
+  - **The freeze uses the terminal's clock.** The 3.1-hour skew is *directional*:
+    a local clock behind the server over-freezes (13 bars lost, annoying), and one
+    ahead would keep a still-forming bar — a look-ahead. So neither is acceptable
+    and the server clock is read by default, with `FreezeReport.clock` recording
+    which was used.
+  - **The freeze decides by time, not by position.** `bar.time + period <= now`,
+    because `Bar.time` is the *open* time. "Drop the last row" is wrong at every
+    bar boundary and silently wrong across a weekend or a session break, and both
+    failures look like a working adapter until a comparison fails for no visible
+    reason. Three tests hold it down, and the two that pin the shortcut's failures
+    are the ones a positional freeze would fail: a call in the instant after a bar
+    closed keeps **every** bar, and a series whose newest bar closed hours ago does
+    not shrink.
+  - **A calendar month is refused rather than assumed.** `MN1` has no fixed period,
+    so `period_seconds()` raises `TimeframeUnsupported` instead of assuming 30 days
+    — a freeze that is wrong on two days of every month is a look-ahead that *looks
+    like a correct answer*. A caller who knows the period supplies it.
+  - **A mis-ordered payload is refused, not sorted.** `PYTHON_MQL5_PARITY.md` §3.1
+    calls the series direction *the single likeliest divergence in the whole port*,
+    and the reason is that a reversed series still analyses: swings, a market state,
+    a decision and a set of plans, all internally consistent and all about the
+    wrong direction. Sorting would hide the caller's bug behind a working result.
+    **Measured:** the two MetaTrader APIs disagree — the Python bindings are
+    oldest-first, MQL5 native is newest-first — so both are accepted and
+    normalised, and only a payload that is *neither* is refused.
+  - **The Phase 19 finding is closed.** `AnalysisSession` calls
+    `track_fading_measured_moves`, so the lifecycle a live consumer could not see
+    — `PROJECTED` with `age 0` forever, for a projection the market had already
+    reached and rejected — is now reachable. It **re-derives** rather than
+    accumulating, and that is the load-bearing decision: an incremental state
+    machine would break `RPC-1`, since a session that has seen bars 21..40 and then
+    answers for bar 20 is holding state derived from bars the caller declared
+    unavailable. The pipeline still reports `PROJECTED` — the registry is stateless
+    and that is its contract, and the session adds a caller rather than editing it —
+    so `SessionResult.fade_source` says which reading is which and a test asserts
+    **both**.
+  - **Not shipped** — `mql5/Include/AlBrooks/`, and the sidecars that would fill the
+    parity harness's `mql5/` directory. **This is still blocked**, and running a
+    real terminal sharpened rather than removed the reason: a live Alpari MT5 build
+    6230 found three defects in 54 passing tests, so an MQL5 port validated only by
+    inspection would carry the same class of error at a larger scale.
+    `docs/PYTHON_MQL5_PARITY.md` §8 lists what it owes, and
+    `docs/algorithms/MT5_ADAPTER.md` §5 and §10 repeat it. A test asserts that
+    `mql5/` does not exist and that the parity run still reports `UNVERIFIED`, so
+    the day a real sidecar lands the documentation has to move in the same change.
 
 - [ ] **Phase 22 — AI / LLM Interface**
   - **Objective**: Stable JSON serialization for LLM agents, diagnostic output, example script.
@@ -604,10 +685,16 @@ The harness is built so this state cannot be mistaken for a result:
 - `UNVERIFIED` is its own exit code, so a CI job does not have to choose between
   failing over a build nobody has written and passing silently.
 
-*Changes when:* Phase 21 writes the first real sidecars. The expectation should be
-that the first run **fails** — a port's ATR seed, series direction, swing tie-break
-and null convention are four easy places to diverge, which is why each is in
-scope — and that the disagreements get recorded rather than tuned away.
+*Changes when:* Phase 21 writes the first real sidecars — which requires
+  MetaEditor and a terminal, so it has not happened. The expectation should be
+  that the first run **fails**: a port's ATR seed, series direction, swing
+  tie-break and null convention are four easy places to diverge, which is why each
+  is in scope, and the disagreements should be recorded rather than tuned away.
+  Two of the four are now *half*-addressed on the Python side — the series
+  direction is refused rather than sorted, and the ATR seed is Wilder's — and
+  neither is a parity result. **A hand-written `"producer": "mql5"` file would be
+  worse than no MQL5 code at all**, because the harness would then be reporting an
+  agreement it never measured.
 
 ### A new *layer* is not covered by the non-repaint contract for free
 
@@ -636,12 +723,37 @@ There is no `examples/` directory, so nothing of ours is untracked or lost on a
 fresh clone. Phase 22 owns `examples/llm_analysis.py`. The 0.1.0 changelog listed
 missing examples as a known gap, and that gap is still open.
 
+### `mql5/` does not exist, and that is a statement about the hardware
+
+There is no MQL5 port of this engine in the repository. `tests/parity/mql5/` is
+empty, all three cases name no sidecar, and a parity run still reports
+`UNVERIFIED`.
+
+This is **not** a deferral dressed up as a plan. An MQL5 implementation of this
+scope can only be *validated* by compiling it with MetaEditor and running it
+against a live MetaTrader terminal, and neither exists on the machine this was
+written on. The two ways to make the status read better would both be worse than
+the status itself: shipping thousands of lines of never-compiled MQL5 under a
+directory named `AlBrooks`, or hand-writing a `"producer": "mql5"` sidecar to turn
+a green run into a red one. The second is precisely the dishonesty the Phase 20
+harness was built to detect, and committing it would turn the harness into a
+decoration.
+
+What *was* built is the half that needs no MetaEditor: the adapter, the freeze and
+the stateful session. `tests/unit/test_phase21_adapter.py` asserts that `mql5/`
+does not exist and that parity is still `UNVERIFIED`, so the state is a fact the
+suite checks rather than a claim the documentation makes.
+
+*Changes when:* someone runs MetaEditor. `docs/PYTHON_MQL5_PARITY.md` §8 has the
+ordered list, and the expectation is that the first run fails.
+
 ### Not started at all
 
-`src/albrooks/adapters/` and `src/albrooks/serialization/` each contain only an
-empty `__init__.py`. They are placeholders for Phases 21 and 22, not partial
-implementations. `src/albrooks/trade/`, `src/albrooks/decision/` and
-`src/albrooks/engine/pipeline.py` are populated and read by
-`Analyzer.analyze()` - Phases 14, 15 and 16 - so nothing below the adapters layer
-is a placeholder any more.
+`src/albrooks/serialization/` still contains only an empty `__init__.py` — a
+placeholder for Phase 22, not a partial implementation. `src/albrooks/adapters/`
+is no longer one: `adapters/mt5/` is populated and is on the path a live consumer
+takes, though nothing in the engine reads it. `src/albrooks/trade/`,
+`src/albrooks/decision/` and `src/albrooks/engine/pipeline.py` are populated and
+read by `Analyzer.analyze()` - Phases 14, 15 and 16 - so nothing below the
+adapters layer is a placeholder any more.
 

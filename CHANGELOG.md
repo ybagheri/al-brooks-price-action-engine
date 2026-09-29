@@ -11,6 +11,98 @@ been statistically validated, and no performance claim is made.
 ## [Unreleased]
 
 ### Added
+- **Phase 21, partially delivered** — `src/albrooks/adapters/mt5/`: the MetaTrader 5
+  adapter, and the two obligations `NON_REPAINT_CONTRACT.md` §4 assigns to an
+  adapter rather than to the analysis. `docs/algorithms/MT5_ADAPTER.md`, and 54
+  tests driven by an injected fake terminal — the `MetaTrader5` name appears nowhere
+  in the suite, which is what keeps it runnable on CI.
+  - **The series direction.** The engine is oldest-first and MetaTrader is not, but
+    *which way* depends on the API: the Python bindings are oldest-first (measured),
+    MQL5 native is newest-first. `PYTHON_MQL5_PARITY.md` §3.1 calls this *the single
+    likeliest divergence in the whole port*. `normalize_order()` is the only path from
+    an MT5 payload to a `BarSeries`; it normalises from either direction, **returns
+    the direction it observed** rather than discarding it, and **refuses** a payload
+    that is neither ascending nor descending — because a reversed series still
+    analyses, confidently and about the wrong direction, and inferring intent from a
+    broken sequence is the guess that hides a caller's bug behind a working result.
+  - **The forming-bar freeze, decided by time.** `bar.time + period <= now`, because
+    `Bar.time` is the *open* time. "Drop the last row" is wrong at every bar boundary
+    and silently wrong across a weekend or a session break, and both failures look
+    like a working adapter until a comparison fails for no visible reason. Three
+    tests pin it, two of them the cases the positional shortcut gets wrong: a call
+    with nothing forming keeps **every** bar, and a series whose newest bar closed
+    hours ago does not shrink.
+  - **An all-forming series freezes to empty**, rather than keeping the newest "just
+    in case". The engine already has an honest answer for an empty series — `NO_BARS`,
+    as a reason rather than as an empty structure list.
+  - **The clock is the terminal's, not the local one.** See the measured 3.1-hour
+    skew below. `closed_bars()` reads the server clock by default; a caller-supplied
+    `now` takes precedence; and `FreezeReport.clock` records which was used so a
+    degradation to the local clock is visible rather than silent.
+  - **A calendar month is refused.** `MN1` has no fixed period, so `period_seconds()`
+    raises `TimeframeUnsupported` rather than assuming 30 days — a freeze wrong on two
+    days of every month is a look-ahead that *looks like a correct answer*. An unknown
+    constant is refused for the same reason.
+  - **Four error types rather than one**, because the recovery differs: a dead
+    terminal, a misspelt symbol, an empty history and an unmeasurable timeframe are
+    four different problems. They share a base so a caller who cannot act on the
+    difference has one handler.
+  - **`AnalysisSession` closes the Phase 19 finding.** It calls
+    `track_fading_measured_moves`, so the lifecycle a live consumer could not see —
+    `PROJECTED` with `age 0` forever, for a projection the market had already reached
+    and rejected — is now reachable. It **re-derives** rather than accumulating, and
+    that is the load-bearing decision: an incremental state machine would break
+    `RPC-1`, since a session that has seen bars 21..40 and then answers for bar 20
+    holds state derived from bars the caller declared unavailable.
+  - **The pipeline still reports `PROJECTED`**, deliberately. The registry is
+    stateless and that is its contract; the session adds a caller rather than editing
+    it. `SessionResult.fade_source` says which reading is which, and a test asserts
+    **both**, so the change cannot quietly become "the pipeline now says something
+    else".
+  - `on_feed()` takes `now` and `period_seconds` rather than leaving them to the
+    feed's defaults, so a caller replaying recorded data is not at the mercy of the
+    live clock.
+- `changed_since_previous()` answers `RPC-15`'s question directly — what moved
+  between two bars, and what held still — and reports `first_call` rather than an
+  empty change set that would read as "nothing moved".
+- **Three defects found by running the adapter against a real terminal, and the
+  finding recorded in `MT5_ADAPTER.md` §10 because the shape of it matters more
+  than the individual bugs: a fake encodes the author's assumptions.** The original
+  54 tests all passed; all three defects would have failed on the first live call.
+  - **`copy_rates` does not exist** in the Python bindings. Only
+    `copy_rates_from_pos`, `copy_rates_from` and `copy_rates_range` are provided.
+    The adapter called `copy_rates` and would have raised `AttributeError`; the
+    fake implemented it, because the MQL5 documentation names it.
+  - **The payload is oldest-first, not newest-first.** The bindings ignore MQL5's
+    `ArraySetAsSeries` convention, and all three `copy_rates_*` entry points return
+    ascending rows — measured on M1, M5 and M15. The original strict check
+    *refused* anything not newest-first and would therefore have raised on every
+    real payload. The property that matters is **monotonicity, not direction**:
+    both single directions are legitimate conventions and both are now normalised,
+    with the direction observed **returned** rather than discarded so a silent flip
+    cannot hide. A payload that is neither ascending nor descending is still
+    refused.
+  - **The server clock ran 3.099 hours ahead of the local one** (`+11157s`, Alpari
+    MT5 build 6230). Over a 50-bar M15 window the local clock treated 14 bars as
+    still forming when only 1 was, discarding 13 bars of real history. The failure
+    is **directional**: a local clock *behind* the server over-freezes, and one
+    *ahead* would keep a still-forming bar — a look-ahead. So `closed_bars()` now
+    reads the terminal's clock, and `FreezeReport.clock` records which was used
+    (`SERVER` / `CALLER` / `LOCAL`) so a degradation is visible.
+  - `tests/integration/test_phase21_live_mt5.py` — 8 read-only checks against a
+    real terminal, **skipped** when none is reachable, covering exactly what a fake
+    cannot: which functions exist, which direction arrives, whether both
+    conventions agree, and whether `RPC-2` holds on a real series. A skip is not a
+    pass, and every skip names its reason.
+  - **The `RPC-2` check was itself wrong on its first live run, and that is
+    recorded too.** It searched the serialised result for the forming bar's high as
+    a *substring*, and EURUSD quotes to five decimals — so a forming high of
+    `1.13640` matched `1.13645`, a closed bar's low. The comparison is now numeric
+    at the instrument's own precision, read from `symbol_info` rather than assumed,
+    and it checks the two extremes rather than the close (a forming close is the
+    last traded price, which a prior bar can legitimately share).
+- `docs/algorithms/MT5_ADAPTER.md` is a **required** CI document, and it states in
+  §5 that `mql5/` does not exist and why.
 - **Phase 20** — `tests/parity/`: the Python/MQL5 parity harness, and
   `docs/PYTHON_MQL5_PARITY.md`. A **canonical vector** of 33 declared fields
   across eight groups — analysed bar, ATR, market state, swings with both their
@@ -74,11 +166,42 @@ been statistically validated, and no performance claim is made.
   found" and "not implemented" are different statements.
 
 ### Known limitations
+- **Phase 21 is half delivered, and the missing half needs hardware.** The adapter,
+  the freeze and the stateful session are built and tested. `mql5/Include/AlBrooks/`
+  is **not**, and cannot be from a machine with neither MetaEditor nor a MetaTrader
+  terminal — an MQL5 port of eleven detectors, the market-state classifier, the plan
+  geometry and the decision engine can only be *validated* by compiling and running
+  it. Shipping never-compiled MQL5, or hand-writing a `"producer": "mql5"` sidecar
+  to turn the harness green, would be worse than the honest status. The second would
+  in particular be the exact dishonesty the Phase 20 harness exists to catch.
 - **No MQL5 parity has been established, and the harness cannot be read as having
   tried.** `tests/parity/mql5/` is empty, all three cases name no sidecar, and a
   run reports `UNVERIFIED` — a status distinct from both a pass and a failure,
   because nothing was compared. Zero of three cases have been compared and **no
-  parity claim is made anywhere in this project.**
+  parity claim is made anywhere in this project.** The Phase 21 work changes nothing
+  here, and `tests/unit/test_phase21_adapter.py` asserts the empty state so the
+  documentation has to move in the same change that fills the harness.
+- **The clock is the terminal's, and reading it is an approximation.** The bindings
+  have no `TimeCurrent()`, so `server_time()` is the time of the last *tick*. On a
+  quiet symbol that may be older than now, which makes the freeze conservative (fewer
+  bars treated as closed) — the safe direction, but still an approximation. The
+  3.1-hour skew measured on Alpari is a property of *that broker*, not a constant,
+  which is why the adapter measures the clock rather than hard-coding an offset.
+- **The live suite covers one broker and one symbol.** Alpari MT5 build 6230,
+  `MetaTrader5` 5.0.6180, EURUSD on M1/M5/M15/H1. A different venue may differ, and
+  the three defects in §10 are exactly the kind that hide until a real API disagrees
+  with the assumed one.
+- **A skip in the live suite is not a pass.** It means the file did not run. That is
+  why every skip names its reason including the exact `MetaTrader5` error: a suite
+  that skips silently is indistinguishable from one that passes.
+- **`WINDOW_FLOOR = 60` is a floor, not a recommendation.** It is derived from the
+  default config (`atr_period + 4 * swing_k + state_lookback`, rounded up), so a
+  caller who changes those keys and not the floor gets a stale number. A short window
+  is reported as `MT5_WINDOW_BELOW_FLOOR` rather than refused, and the engine's own
+  `warnings` describe what degraded.
+- **A monthly chart needs an explicit `period_seconds`.** `MN1` is refused rather
+  than assumed at 30 days, which is correct but does mean the adapter cannot serve a
+  monthly series unattended.
 - Three refusals keep that state from being mistaken for a result. A sidecar
   whose `producer` is not `mql5` is not counted, which is what makes the
   committed Python-produced vectors in `tests/parity/reference/` safe to keep; a
@@ -594,7 +717,12 @@ been statistically validated, and no performance claim is made.
     `age 0` for a projection the market has already reached, and the five-state
     lifecycle is reachable only by calling the module directly. Fixing it means
     giving a stateless detector a stateful responsibility, which belongs with the
-    MT5 adapter in Phase 21 rather than with a test fixture.
+    MT5 adapter in Phase 21 rather than with a test fixture. **Closed for a live
+    consumer (Phase 21)** — `AnalysisSession` is that stateful caller, and it
+    **re-derives** the lifecycle on every call rather than accumulating it, because
+    an incremental state machine would break `RPC-1`. The *pipeline* still reports
+    `PROJECTED`, which is correct: the registry is stateless and that is its
+    contract, so the session adds a caller rather than editing it.
   - **The pullback window is a configuration choice, not a reading of price.** The
     detector calls the first bar with a higher high the first leg, so in a clean
     uptrend the "pullback" is just the last `max_pb_bars` bars. `golden_h2_001`

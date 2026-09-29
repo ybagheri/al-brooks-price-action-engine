@@ -55,6 +55,17 @@ Phase 21 owns the MT5 adapter, and this is its obligation. `RPC-14` and `RPC-15`
 below are the tests that say what happens when it does its job, and what happens
 when it does not.
 
+**The obligation is now discharged on the Python side.**
+`albrooks.adapters.mt5.series.freeze_closed_bars()` drops the forming bar by
+**time** — `bar.time + period_seconds <= now`, since `Bar.time` is the *open* time
+— and **raises** rather than sorting when a payload is not in MetaTrader's
+newest-first order. Deciding by position ("drop the last row") is wrong at every
+bar boundary and silently wrong across a weekend, and both failures look like a
+working adapter until a comparison fails for no visible reason.
+`docs/algorithms/MT5_ADAPTER.md` §3 is the specification; §5 records that **the
+MQL5 side still owes the same obligation**, which is one reason parity remains
+`UNVERIFIED`.
+
 ## 5. The guarantees
 
 ### RPC-1 — Analysis at a bar index is independent of later bars

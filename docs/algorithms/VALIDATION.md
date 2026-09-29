@@ -102,7 +102,7 @@ definition that agree is a real check; one reading agreeing with itself is not.
 
 Three things, all recorded in the fixtures.
 
-### 5.1 The fade lifecycle is unreachable through the pipeline
+### 5.1 The fade lifecycle was unreachable through the pipeline — now closed for a live consumer
 
 `golden_fm_001` is a bull measured move projecting 111.1, which the market reaches
 at bar 28 and rejects at bar 29. `track_fading_measured_moves` reports
@@ -111,13 +111,13 @@ at bar 28 and rejects at bar 29. `track_fading_measured_moves` reports
 `Analyzer.analyze()` on the same bar reports `PROJECTED`, `age 0`,
 `exhaustion_breadth 0`, reason `"projection formed"`.
 
-The cause is in `setups/registry.py:310`: the `FADING_MEASURED_MOVE` detector
+The cause was in `setups/registry.py`: the `FADING_MEASURED_MOVE` detector
 calls `create_setups`, which only seeds. The function that advances the state
-machine, `track_fading_measured_moves`, is never called by the engine. So a live
-consumer sees `PROJECTED` forever, and the five-state lifecycle documented in
-`FADING_MEASURED_MOVE.md` §2 is reachable only by calling the module directly.
+machine, `track_fading_measured_moves`, was never called by the engine. So a live
+consumer saw `PROJECTED` forever, and the five-state lifecycle documented in
+`FADING_MEASURED_MOVE.md` §2 was reachable only by calling the module directly.
 
-This is recorded, not fixed, and the reason matters. The registry is a
+This was recorded rather than fixed, and the reason mattered. The registry is a
 *stateless* detector contract: given a context, return findings. A stateful
 lifecycle does not fit it, and making it fit is an architecture decision — one
 that belongs with the MT5 adapter's obligation to maintain state across calls
@@ -125,6 +125,21 @@ that belongs with the MT5 adapter's obligation to maintain state across calls
 
 A golden fixture that quietly fixed this would be deciding an architectural
 question in a JSON file.
+
+**Phase 21 closed it, and the way it was closed is the interesting part.**
+`albrooks.adapters.mt5.session.AnalysisSession` is the stateful caller this
+deferred to, and it calls `track_fading_measured_moves`. The obvious
+implementation — keep the setups in `self` and advance one bar per call — would
+have **broken `RPC-1`**: a session that has seen bars 21..40 and then answers for
+bar 20 is holding state derived from bars the caller declared unavailable, and its
+answer for bar 20 would depend on *when* it was asked. So the session **re-derives**
+on every call, which `track_fading_measured_moves` being a deterministic function of
+`(bars, last_closed)` makes possible.
+
+The pipeline still reports `PROJECTED`, and that is now a deliberate reading rather
+than a defect: the registry is stateless and this is its contract, so the session
+adds a caller rather than editing it. `SessionResult.fade_source` says which reading
+is which.
 
 The honest boundary is also pinned. Truncate the fixture before the target is
 reached and the lifecycle never touches, the pipeline's `PROJECTED` becomes

@@ -46,12 +46,15 @@ jobs:
       run: |
         python scripts/check_docs_present.py
 
-    # Parity currently reports UNVERIFIED: no MQL5 build exists yet, so nothing
-    # has been compared and there is no parity claim to keep honest. The flag
-    # exists for exactly that period, and
+    # Parity currently reports UNVERIFIED: no MQL5 build exists, so nothing has
+    # been compared and there is no parity claim to keep honest. The flag exists
+    # for exactly that period, and
     # `tests/unit/test_phase20_parity.py::test_the_unverified_scaffold_stays_in_step_with_ci`
-    # fails if it is still here once the first real sidecar lands. Phase 21
-    # removes this step's flag along with the scaffolding.
+    # fails if it is still here once the first real sidecar lands.
+    # `tests/unit/test_phase21_adapter.py::test_no_mql5_sidecar_exists_and_the_parity_run_still_says_unverified`
+    # asserts the other direction: that the state has not silently changed.
+    # Phase 21's adapter, freeze and session shipped; the MQL5 port is blocked on
+    # MetaEditor, so the flag stays until that is done.
     - name: Run the Python / MQL5 parity harness
       run: |
         python -m tests.parity.runner --allow-unverified

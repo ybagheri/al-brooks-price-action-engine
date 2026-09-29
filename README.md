@@ -18,7 +18,11 @@ never depends on MetaTrader 5. Platform integration lives strictly in adapters.
 ## Status
 
 **21 of 24 phases are complete** (0-20). Phases 21-23 remain, and all three are
-platform work rather than analysis work. See
+platform work rather than analysis work. Phase 21 is **partially** delivered: the
+adapter, the freeze and the stateful session are built, tested **and run against a
+live MetaTrader terminal** (which found three defects the fake-driven tests had
+passed — see [MT5_ADAPTER.md §10](docs/algorithms/MT5_ADAPTER.md)), while the MQL5
+port is blocked on MetaEditor and parity therefore still reports `UNVERIFIED`. See
 [ROADMAP.md](ROADMAP.md) → *Where the project stands* for the full picture and
 [CHANGELOG.md](CHANGELOG.md) for history.
 
@@ -41,7 +45,8 @@ platform work rather than analysis work. See
 | Backtesting | Implemented — MFE/MAE, time to level, outcome class. **No P&L, by design** |
 | Golden fixtures | Implemented — 5 hand-authored charts, hand-derived expectations, falsifiers |
 | MQL5 parity | **Harness built, nothing compared** — Phase 20. No MQL5 build exists yet |
-| MT5 adapter and MQL5 layer | **Not started** — Phase 21 |
+| MT5 adapter | **Implemented and run against a live terminal** — Phase 21. Feed, series direction, forming-bar freeze, stateful session |
+| MQL5 layer | **Not started** — Phase 21, blocked on MetaEditor. Nothing has been compared |
 | AI / LLM interface | **Not started** — Phase 22 |
 | Bilingual documentation | **Partial** — Phase 23 |
 
