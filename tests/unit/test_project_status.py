@@ -204,15 +204,67 @@ def test_the_readme_status_table_covers_every_area_of_the_engine() -> None:
     ):
         assert area in english, f"README.md status table is missing {area!r}"
 
-    for not_started in ("MQL5 parity", "MT5 adapter", "AI / LLM interface"):
-        assert not_started in english, f"README.md does not name {not_started!r} as pending"
+    # Phase 21 split one row into two, and this assertion is what keeps that honest.
+    # It used to be a single `"MT5 adapter" in english` check, which passed for as
+    # long as the phrase appeared *anywhere* -- so it went on passing after the
+    # adapter shipped and the row changed meaning, testing nothing. The rows are
+    # now matched on the line they appear in, which is the thing a reader reads.
+    # A markdown row splits as ['', ' name ', ' state ', '', ...] -- the leading
+    # pipe produces an empty first field, which is why the name is cells[1].
+    rows = {
+        cells[1].strip(): cells[2].strip()
+        for line in english.splitlines()
+        if line.strip().startswith("|")
+        for cells in [line.split("|")]
+        if len(cells) > 3 and cells[1].strip()
+    }
+    assert "Implemented" in rows["MT5 adapter"], (
+        f"README.md still reports the MT5 adapter as {rows['MT5 adapter']!r}; "
+        f"Phase 21 shipped it"
+    )
+    # `MQL5 parity` is a different claim from `MQL5 layer`: the harness is built and
+    # unfilled, which is neither "done" nor "not started", and collapsing the two
+    # would be the error this project keeps refusing elsewhere. So it is checked
+    # for the *specific* thing that is true — nothing compared — rather than
+    # against a single "not started" phrase that would have fit neither row.
+    assert "MQL5 parity" in rows
+    parity = rows["MQL5 parity"]
+    assert "nothing compared" in parity and "No MQL5 build" in parity, (
+        f"the parity row must say the harness exists and compares nothing; it says "
+        f"{parity!r}"
+    )
+    for not_started in ("MQL5 layer", "AI / LLM interface"):
+        assert not_started in rows, f"README.md has no {not_started!r} row"
+        assert "Not started" in rows[not_started], (
+            f"README.md reports {not_started!r} as {rows[not_started]!r}"
+        )
 
     persian = _text(README_FA)
     for area in ("بک‌تست", "فیکسچرهای طلایی", "قرارداد عدم بازترسیم",
                  "برنامه‌های معاملاتی", "تصمیم‌ها"):
         assert area in persian, f"README_FA.md has no row for {area!r}"
-    for not_started in ("پاریتی MQL5", "آداپتور MT5", "رابط AI"):
-        assert not_started in persian, f"README_FA.md does not name {not_started!r}"
+    fa_rows = {
+        cells[1].strip(): cells[2].strip()
+        for line in persian.splitlines()
+        if line.strip().startswith("|")
+        for cells in [line.split("|")]
+        if len(cells) > 3 and cells[1].strip()
+    }
+    assert "پیاده‌سازی شده" in fa_rows["آداپتور MT5"], (
+        f"README_FA.md still reports the MT5 adapter as {fa_rows['آداپتور MT5']!r}"
+    )
+    # Same split as the English table: the parity harness is built and unfilled,
+    # which is neither done nor not-started, and the Persian row has to say so.
+    assert "پاریتی MQL5" in fa_rows
+    fa_parity = fa_rows["پاریتی MQL5"]
+    assert "هیچ مقایسه‌ای انجام نشد" in fa_parity, (
+        f"the parity row must say nothing was compared; it says {fa_parity!r}"
+    )
+    for not_started in ("لایهٔ MQL5", "رابط AI / LLM"):
+        assert not_started in fa_rows, f"README_FA.md has no {not_started!r} row"
+        assert "شروع نشده" in fa_rows[not_started], (
+            f"README_FA.md reports {not_started!r} as {fa_rows[not_started]!r}"
+        )
 
 
 def test_both_readmes_say_implementation_is_not_validation() -> None:
