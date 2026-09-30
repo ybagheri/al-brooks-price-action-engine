@@ -210,11 +210,13 @@ class MT5Feed:
             return self._mt5
         try:
             # `MetaTrader5` ships with a MetaTrader terminal and carries no type
-            # information, so `mypy` is told to look the other way. The scope is
-            # this one module on purpose: silencing it package-wide would remove
-            # the check from the code that most needs it, and `feed.py` is
-            # duck-typed through `_MT5Module` regardless.
-            import MetaTrader5 as mt5  # type: ignore[import-untyped]  # noqa: PLC0415
+            # information. It is silenced by a `[[tool.mypy.overrides]]` entry in
+            # `pyproject.toml` rather than by an inline ignore here, because the two
+            # environments disagree about which error this import produces --
+            # `import-untyped` where the bindings are installed, `import-not-found`
+            # where they are not -- and with `warn_unused_ignores` an inline ignore
+            # passes on one and fails on the other. That is what turned CI red.
+            import MetaTrader5 as mt5  # noqa: PLC0415
         except ImportError as exc:
             raise MT5Unavailable(
                 "the MetaTrader5 bindings are not importable; they ship with a "

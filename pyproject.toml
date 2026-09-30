@@ -82,3 +82,22 @@ disallow_untyped_defs = true
 # Numeric results are inherently float-typed; the engine is not a numeric
 # library and strict promotion warnings add noise without catching real bugs.
 disallow_any_generics = false
+
+# `MetaTrader5` is handled here rather than with an inline `# type: ignore`,
+# and the reason is that the two environments disagree about *which* error the
+# import produces.
+#
+# A developer machine with a terminal installed has the module present and
+# untyped, so mypy reports `import-untyped`. CI does not install it, so mypy
+# reports `import-not-found`. An inline ignore can only name one code, so with
+# `warn_unused_ignores = true` the same line passes locally and **fails CI** --
+# and it failed on all three matrix versions, which is what a version-independent
+# error looks like.
+#
+# An override is indifferent to which of the two it is, so there is no ignore
+# left to become unused. The scope stays this one module on purpose: silencing it
+# package-wide would remove the check from the code that most needs it, and
+# `feed.py` is duck-typed through `_MT5Module` regardless.
+[[tool.mypy.overrides]]
+module = ["MetaTrader5"]
+ignore_missing_imports = true

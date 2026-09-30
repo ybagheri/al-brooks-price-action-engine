@@ -605,3 +605,58 @@ def test_every_algorithm_document_on_disk_is_claimed_by_the_manifest() -> None:
     }
 
     assert on_disk <= claimed, f"unclaimed documents: {sorted(on_disk - claimed)}"
+
+
+# --------------------------------------------------------------------------
+# An inline type: ignore must not depend on which machine is checking
+# --------------------------------------------------------------------------
+
+
+def test_the_untyped_optional_import_is_silenced_in_config_not_inline() -> None:
+    """CI was red for three runs because one `# type: ignore` was environment-shaped.
+
+    `src/albrooks/adapters/mt5/feed.py` imported `MetaTrader5` with
+
+        import MetaTrader5 as mt5  # type: ignore[import-untyped]
+
+    and that line is correct on a developer machine and **wrong in CI**, because
+    the two environments produce different errors for the same import:
+
+    - bindings installed, untyped -> `import-untyped`, so the ignore is used
+    - bindings not installed     -> `import-not-found`, so the ignore is *unused*
+
+    With `warn_unused_ignores = true` the second case is an error. It failed on all
+    three matrix versions at once, which is the signature of an error that has
+    nothing to do with the Python version, and the previous two runs were red for
+    the same reason.
+
+    An inline ignore can only name one code, so it cannot express "whichever of
+    these two applies". A `[[tool.mypy.overrides]]` entry can, and leaves no ignore
+    behind to become unused. This asserts both halves, because either alone is
+    insufficient: the override alone would still pass if the ignore came back, and
+    the absence of the ignore alone would pass if the override were dropped.
+    """
+    pyproject = _text(REPO / "pyproject.toml")
+
+    assert "[[tool.mypy.overrides]]" in pyproject, (
+        "the MetaTrader5 import must be silenced by a mypy override, not inline"
+    )
+    assert 'module = ["MetaTrader5"]' in pyproject, (
+        "the override must name MetaTrader5 specifically; silencing it package-wide "
+        "would remove the check from the code that most needs it"
+    )
+    assert "ignore_missing_imports = true" in pyproject, (
+        "the override must ignore missing imports, which is what covers both the "
+        "installed-but-untyped and the not-installed cases"
+    )
+
+    offenders = [
+        f"{path.relative_to(REPO)}:{number}"
+        for path in sorted((REPO / "src").rglob("*.py"))
+        for number, line in enumerate(_text(path).splitlines(), start=1)
+        if "type: ignore" in line and "MetaTrader5" in line
+    ]
+    assert not offenders, (
+        "an inline ignore on MetaTrader5 passes locally and fails CI; use the "
+        f"mypy override instead: {offenders}"
+    )
