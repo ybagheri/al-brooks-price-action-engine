@@ -1,15 +1,31 @@
-# Handoff — Phase 21 complete, all 24 phases done
+# Handoff — every phase delivered, validation is what remains
 
-> **Read this if you are a model picking this repository up cold.** The short
-> version is in the three sections immediately below. Everything after them is
-> detail.
+> **Read this if you are picking this repository up cold.** The short version is in
+> the two sections immediately below. Everything after them is detail.
 
-A point-in-time note for whoever picks this up next. **If this file disagrees with
-`ROADMAP.md`, `ROADMAP.md` is right**, and this file should be deleted rather than
-patched. It is not a phase deliverable and no test reads it.
+A point-in-time note. **If this file disagrees with `ROADMAP.md`, `ROADMAP.md` is
+right**, and this file should be deleted rather than patched. It is not a phase
+deliverable and no test reads it.
 
-Full suite: 773 tests, `ruff` and `mypy` clean, both `scripts/` checks passing,
-and 8 live-terminal checks pass when `ALBROOKS_MT5_PATH` is set.
+**No test count appears here on purpose.** An earlier version stated one, and it was
+wrong within a single commit — twice — because a number in prose is a claim that
+every later change falsifies. The authoritative statement of what passes is CI, and
+what passes is: the full suite, `ruff`, `mypy`, both `scripts/` checks, and the
+parity harness reporting `AGREED`. The live-terminal checks need a terminal and skip
+without one; **a skip is not a pass.**
+
+## Which machine this describes
+
+**The MQL5 build loop in this file only works on a machine that has MetaEditor and
+administrator rights.** It was last run on a laptop that could install any Python
+version and elevate freely. A machine without those cannot reproduce the sidecars,
+and must not try to: see *Do not rebuild the sidecars* below.
+
+Everything else — the engine, the suite, the parity harness against the
+**committed** sidecars, the docs — is platform-independent and runs anywhere Python
+3.10+ does. The committed sidecars carry no broker, account, server or terminal
+information, so `AGREED` is reproducible on any machine and says nothing about
+which machine produced them.
 
 ## Where this stands, in four lines
 
@@ -19,41 +35,54 @@ and 8 live-terminal checks pass when `ALBROOKS_MT5_PATH` is set.
   fixtures, an MT5 adapter, an LLM-facing serialization, a Persian documentation
   tree, and an **MQL5 implementation of all of it**.
 - **Parity is established over the declared scope, and only that.** A real
-  MetaEditor build, run in a real Strategy Tester, produces a real sidecar for
-  each of the three cases, and **all three agree with Python on every declared
-  field, with a worst relative deviation of `0.0`** — not merely inside the
-  `1e-9` tolerance. The run reports `AGREED`. `--allow-partial` is out of CI,
-  because `AB_PORTED_GROUPS` now names every group in `SCOPE` and there is
-  nothing left for a flag to suppress.
+  MetaEditor build, run in a real Strategy Tester, produced a real sidecar for each
+  of the three cases, and **all three agree with Python on every declared field,
+  with a worst relative deviation of `0.0`** — not merely inside the `1e-9`
+  tolerance. The run reports `AGREED`. `--allow-partial` is out of CI, because
+  `AB_PORTED_GROUPS` now names every group in `SCOPE` and there is nothing left for
+  a flag to suppress.
 - **Nothing here is validated.** An `AGREED` parity run is an agreement about
   *code*, between two implementations of the same logic, over three hand-drawn
-  charts. It is not a proof of equivalence, it says nothing about inputs outside
-  the case set, and it says nothing whatever about whether any of this works on a
-  market. No number in this project is a probability, a win rate or an edge, and
-  `docs/algorithms/VALIDATION.md` §9 lists the four missing ingredients, the
-  largest of which is a stated null. **That gap is now the largest thing left.**
+  charts. It is not a proof of equivalence, it says nothing about inputs outside the
+  case set, and it says nothing whatever about whether any of this works on a
+  market. No number in this project is a probability, a win rate or an edge.
 - **There is no open phase.** The remaining work is validation, which is not a
   phase and cannot be done from inside this project without data.
 
-## What to do next, in order
+## What to do next
 
-1. **Validation, and nothing else.** Nothing in this project has been checked
-   against outcomes, and that is a larger gap than the phase count ever was. The
-   prerequisites are in `docs/algorithms/VALIDATION.md` §9, and the first of them
-   is a stated null. Do not begin by tuning a threshold; begin by writing down
-   what would have to be true for a result to mean anything.
-2. **Re-verify the port on another machine.** The sidecars are committed and the
-   harness is `AGREED`, but the loop has been run on one machine with one broker
-   account. `scripts/build_mql5.py` reads the account from the data folder
-   rather than hard-coding it precisely so that it can be re-run elsewhere; a
-   machine whose terminal folder is already writable can skip the mirror.
-3. **If a case is added**, it needs a sidecar produced by a real build, the
-   inventory test updated, and the docs moved in the same change. Each new
-   sidecar is a new claim, and
-   `test_the_mql5_directory_holds_exactly_the_sidecars_this_project_produced`
-   exists to make that deliberate.
+**`ROADMAP.md` and `docs/algorithms/VALIDATION.md` §9 are the authority; this file
+does not restate them.** In one line: obtain real bars, and nothing else. §9.1
+through §9.3 are the outstanding prerequisites — real data, a labelled sample with a
+stated provenance, an out-of-sample split. **§9.4, the stated null, is already
+written and implemented** (`src/albrooks/backtest/null.py`), with a fixed seed and a
+`verdict` that is a constant, so the comparison cannot be renegotiated once a result
+is seen. Read §9 before starting, and do not begin by tuning a threshold: the
+threshold is not the binding question.
+
+Two things that do not need doing again:
+
+- **Re-verifying the port on a second machine** was partly done — the eight
+  read-only live checks pass on a second machine with a different broker, which is
+  the part that can be checked without MetaEditor. What remains is regenerating the
+  sidecars there, which is optional and carries a warning below.
+- **The sidecars do not need rebuilding to be trustworthy.** Parity is `AGREED`
+  against the committed files on any machine, because those files are pure fixtures.
+
 
 ## Rebuilding the sidecars
+
+> **Do not rebuild them without a reason.** Parity is already `AGREED` against the
+> committed files, on any machine, because those files are pure fixtures with no
+> broker or account in them. Rebuilding replaces committed artifacts with ones
+> produced by *your* terminal, for no gain in confidence, and a rebuild that fails
+> halfway leaves a confusing red parity run pointing at a cause that has nothing to
+> do with the engine. If you do rebuild, do it on a branch and run
+> `python -m tests.parity.runner` **before** committing anything.
+
+This needs a machine with **MetaEditor and administrator rights** — the machine the
+sidecars were last produced on. On a machine without them, skip this section
+entirely; nothing else in the project needs them.
 
 ```bat
 python scripts/build_mql5.py --case parity_range_breakout_001
@@ -130,6 +159,21 @@ All three are fixed. The transferable lesson is recorded in
 Fifty-four green tests certified that the code matched a mental model of MetaTrader,
 which is not the claim "this works against MetaTrader".
 
+**The same lesson then arrived from the other direction — from a check, not a fake.**
+`test_the_live_analysis_never_reports_a_price_from_the_forming_bar` had already
+failed twice on false positives, and was "fixed" both times by narrowing what it
+compared against. It failed a third time, on a forming extreme of `1.13309` that was
+the **close of the last closed bar**: a price the market had finished printing, and
+one the result is *supposed* to carry. The rule now compares against every open,
+high, low and close of every closed bar, not the extremes alone, and the helper
+`_unprinted_forming_extremes` carries the reasoning. The generalisable part: **each
+of the three fixes made the test narrower instead of the question better**, and only
+the third was right — a leak is a price the market has not finished printing, which
+is a fact about the data, not about which fields you felt like checking. Because the
+whole file skips without a terminal, that rule was never exercised in CI; four
+terminal-free checks now pin it, including one asserting the old extremes-only rule
+*would* misreport, so the narrowing cannot be undone silently.
+
 `tests/integration/test_phase21_live_mt5.py` is the correction — 8 read-only checks
 covering exactly what a fake cannot. They **skip** without a terminal:
 
@@ -138,7 +182,10 @@ set ALBROOKS_MT5_PATH="C:\Users\<you>\AppData\Roaming\Alpari MT5_4\terminal64.ex
 python -m pytest tests\integration\test_phase21_live_mt5.py -v -rs
 ```
 
-**A skip is not a pass.** It means the file did not run.
+**A skip is not a pass.** It means the file did not run. The file also carries **four
+checks that need no terminal** and therefore do run in CI — see
+`_unprinted_forming_extremes` below, which exists because the rule it pins was being
+verified only against a moving market.
 
 ## The three things worth knowing before touching this code
 

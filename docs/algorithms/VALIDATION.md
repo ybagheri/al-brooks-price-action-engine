@@ -222,17 +222,115 @@ Not a bigger fixture set. In order:
    surprised. The failure modes worth catching are the ones in real series:
    gaps, session boundaries, instrument-specific ranges, and bars where a level
    is grazed exactly.
+
+   **The exporter exists: `scripts/export_bars.py`.** It reads real bars through
+   the adapter's own freeze — one implementation of the closed-bar rule, not a
+   second one in a script — and writes a JSON file carrying its own provenance:
+   the terminal build, the broker server and whether the feed was **demo or live**,
+   the symbol's digit precision, the clock the closed-bar test used, and the exact
+   span. It records **no account number and no credentials**, because provenance has
+   to identify the *feed* and a login identifies a person.
+
+   Two things it refuses rather than handles. It will not substitute a fixture when
+   no terminal is reachable, because a dataset that silently contained synthetic
+   bars would defeat its own purpose. And it will not write a file whose bars are
+   not monotonic or not closed: `inspect_series` in
+   `src/albrooks/adapters/mt5/dataset.py` checks that every bar time is strictly
+   ascending and that every bar satisfies `bar.time + period <= now` on the
+   **server** clock, and the script checks the series **again after reading it back
+   from disk**, because a file that was valid in memory and invalid on disk has been
+   through a serialisation bug. The verdict is written into the file, so a dataset
+   carries its own proof rather than asking to be trusted.
+
+   `datasets/` is gitignored. The data is the broker's to distribute, and the
+   provenance travels *inside* the file so it survives being uncommitted — an
+   unrecorded sample is exactly what item 2 below complains about.
+
+   **What this does not do.** It produces no labels and no result. Items 2 and 3 are
+   human judgements — what a setup *is*, and which bars were available when — and a
+   script that generated them would be generating its own evidence.
 2. **A labelled sample with a stated provenance.** Where did the labels come from,
    who drew them, and what did they see? `tests/fixtures/golden/` has no answer
    to that and does not pretend to.
 3. **Out of sample, always.** Fit on some of it, report on the rest. Reporting
    only the fitted half is the most common way a backtest becomes a curve.
 4. **A stated null.** A sample share of target-first events means nothing without
-   what the same count would be on random entries into the same levels. This is
-   the single largest missing piece, and it is larger than everything above.
-5. **Then, and only then,** a label. Until §9.4 exists, every number in this
-   project stays `is_probability: false`, and the backtest module keeps refusing
-   to produce a win rate.
+   what the same count would be on random entries into the same levels. **Stated,
+   specified and implemented in §9.4 below.** It is the largest of the four, and
+   it is the one that must be written *before* the answer is known.
+5. **Then, and only then,** a label. Until §9.1 through §9.3 exist, every number in
+   this project stays `is_probability: false`, and the backtest module keeps
+   refusing to produce a win rate. §9.4 existing does not change that, and §9.4
+   cannot change it by itself: a stated null is a *precondition* for a verdict, not
+   a verdict.
+
+### 9.4 The null, stated in advance
+
+**The hypothesis.** The engine's share of target-first events is no better than
+what the same sample produces when the engine's directional claim is removed and
+nothing else is changed.
+
+**What "nothing else is changed" means, precisely.** For every event the engine
+produced, the counterfactual keeps
+
+- the same **fill bar** and the same **fill price**,
+- the same **risk** and the same **reward** — so the R:R ratio and both ATR-scaled
+  distances are preserved exactly, not to a tolerance,
+- the same **horizon**, fill policy and ambiguity policy,
+
+and replaces only the **direction**, by reflecting the stop and the target about
+the entry price. Which events get reflected is drawn at random, independently per
+event, so exactly one thing is destroyed: the engine's ability to pick the side.
+
+The levels are **reflected rather than re-derived** because the plan's stop and
+target are themselves a function of the direction the engine chose. Re-deriving
+them would hand the null a different trade, and the comparison would no longer
+isolate anything.
+
+**Why the direction and not the timing.** "Random entries into the same levels"
+admits two readings. Randomising the *timing* would confound the claim about
+*when* with the claim about *which way* — and because the levels are
+direction-dependent, a randomly-timed entry at an unchanged direction leaves the
+directional claim completely intact. The null would then be testing something the
+engine never asserted. Randomising direction isolates the one claim the engine
+actually makes, and holding the timing at the engine's own choice keeps the
+comparison **matched** rather than generous to either side.
+
+**What it is implemented as.** `src/albrooks/backtest/null.py`.
+`null_distribution(bars, result, design)` returns the observed tally beside the
+null distribution, and `NullDesign` carries every parameter that could bias the
+result — `randomizations`, `seed`, `ambiguity_policy` — into the output, so a
+number in a document can be re-derived. The seed defaults to a fixed value; a null
+that cannot be reproduced is an anecdote.
+
+**What it refuses, and why the refusal is the point.**
+
+- `verdict` is the constant `UNDECIDED`. It is a property with no inputs, so no
+  sample can change it — including a sample chosen to flatter the engine.
+- `to_dict()` reports `"is_probability": false`, as every other surface here does.
+- The comparison statistic is reported as a **count of null draws**, named
+  `null_draws_at_or_above_observed`, and is **not** a p-value. Reading a fraction of
+  random draws as a p-value is the same substitution this project refuses
+  everywhere else, and it would be easy here precisely *because* a number is now
+  available.
+- A run is refused under `ConflictPolicy.PARALLEL` (the events overlap, so
+  independent direction draws are not independent trades) and under
+  `CLOSE_AND_REVERSE` (a path is truncated at a bar the event does not record, so
+  the counterfactual's window would not be the observed one). Both would still
+  produce a number, which is the problem.
+- An empty sample is refused rather than scored as `0.0`.
+
+**Why stating it now, with no data, is the whole value.** A null chosen after the
+result is known is not a null; it is a rationalisation. Writing it down, running it
+on fixtures, fixing the seed and refusing to score it means the comparison is
+pinned before any real data exists to bias it — and it means the remaining three
+ingredients can be obtained without renegotiating what "better than nothing" means.
+
+**What it does not test.** The null isolates the directional claim. It says
+nothing about the engine's timing, its stop placement, its ranking, or whether
+these setups are worth trading at all. A null that beat on direction would not be a
+licence to trade.
+
 
 ## 10. Source
 

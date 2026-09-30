@@ -41,15 +41,15 @@ README_FA = REPO / "README_FA.md"
 #:
 #: This was a `LAST_COMPLETE_PHASE = 20` watermark until Phase 22 landed, which
 #: exposed an assumption baked into three tests: that completed phases are
-#: **contiguous**. They are not, and now cannot be — Phase 21's MQL5 port is
-#: blocked on MetaEditor indefinitely, while Phase 22 needed nothing external and
-#: shipped.
+#: **contiguous**. They are not, and now cannot be — Phase 21's MQL5 port could
+#: not start until a MetaEditor compile and a Strategy Tester run were available,
+#: while Phase 22 needed nothing external and shipped.
 #:
 #: A watermark models "phases land in order", which was true until the first phase
-#: had to wait on hardware. A set models what is actually true, and a phase that is
-#: genuinely complete after a blocked one is not a defect to be encoded away.
+#: had to wait on a toolchain. A set models what is actually true, and a phase that
+#: is genuinely complete after a waited-on one is not a defect to be encoded away.
 #:
-#: Phase 23 is complete and the set is therefore everything except 21.
+#: Phase 23 was the last to close, so the set is everything up to it.
 LAST_COMPLETE_PHASE = 23
 LAST_PHASE = 23
 
@@ -77,8 +77,10 @@ COMPLETE_PHASES: frozenset[int] = (
 #:
 #: A document for work that has *not* started is still refused -- the distinction
 #: this constant draws is between a phase in flight and a phase not yet begun.
-#: Note that Phase 21 is *not* complete either: its MQL5 port is blocked on
-#: MetaEditor, and nothing here should be read as saying otherwise.
+#:
+#: It is held at the last phase, because every phase has now started and closed.
+#: What the constant still refuses is a document for a phase numbered above it,
+#: so raising it is the mechanism that makes a new phase's documents required.
 IN_PROGRESS_PHASE = 23
 
 MARKDOWN = sorted(
@@ -113,15 +115,62 @@ REPO_PATH = re.compile(
 #: Phases whose deliverables are named by a path, and therefore may be named in
 #: prose even while the phase is pending. Everything else must not be.
 #:
-#: `tests/parity/` is here because the harness shipped with Phase 20 and the only
-#: thing still missing inside it is the MQL5 sidecar Phase 21 writes. Naming a
-#: harness that exists is not naming unfinished work.
-PENDING_PHASE_PATHS = (
-    "src/albrooks/serialization/json.py",
-    "examples/llm_analysis.py",
-    "docs/algorithms/AI_INTERFACE.md",
+#: **Now empty, and the emptiness is the claim.** This list existed so that a
+#: pending phase's paths would not trip the existence check below, and it used to
+#: name `mql5/`, `src/albrooks/serialization/json.py` and
+#: `src/albrooks/adapters/mt5/`. All three shipped, so all three exist and need no
+#: exemption.
+#:
+#: It is kept as an empty set rather than deleted for the same reason
+#: `PHASES_STILL_OPEN` is: deleting the constant would remove the only place that
+#: could be wrong. Left populated, it would exempt those paths *forever*, and the
+#: existence check could no longer notice one of them being deleted -- the check
+#: would keep passing on the strength of a stale entry, which is the exact failure
+#: mode this file exists to catch.
+PENDING_PHASE_PATHS: tuple[str, ...] = ()
+
+#: Directories a completed phase delivered, paired with the shapes that would
+#: describe one of them as absent.
+#:
+#: The stale text this was written for was three sentences in two files, none of
+#: them caught by any existing check: `ROADMAP.md` said "`mql5/` does not exist"
+#: and that parity "reports `FAILED`" in a section 880 lines *below* the same
+#: document announcing the port complete, and `README_FA.md` said the sidecar
+#: directory "is empty" and a run reports `UNVERIFIED". The Persian one is the
+#: interesting case -- `test_phase23_bilingual.py` checks that the two trees agree
+#: in structure, and says in its own docstring that it cannot judge whether a
+#: Persian sentence means what its English source means. It had not.
+#:
+#: The match is deliberately two-part -- a line must name a *shipped* path **and**
+#: contain an absence shape -- because a single combined pattern over all paths
+#: flags legitimate prose. Measured against the whole corpus this produced exactly
+#: the three offenders above and no others.
+SHIPPED_PATHS = (
     "mql5/",
+    "tests/parity/mql5/",
+    "src/albrooks/serialization/",
     "src/albrooks/adapters/mt5/",
+    "src/albrooks/trade/",
+    "src/albrooks/decision/",
+    "src/albrooks/engine/pipeline.py",
+)
+
+#: Absence shapes. Kept as explicit alternatives rather than a general
+#: "sounds negative" heuristic, for the reason given on `FORWARD_REFERENCE`: a
+#: check that cries wolf gets deleted, and a deleted check protects nothing.
+ABSENCE_CLAIM = re.compile(
+    r"does not exist"
+    r"|not exist\b"
+    r"|contains? only\b"
+    r"|is (?:still )?an? (?:empty|bare)"
+    r"|\bstill\b[^.]{0,40}\bempty\b"
+    r"|\bplaceholder\b"
+    r"|\bnot populated\b"
+    # The parity status words, which are the specific values a stale sentence
+    # names. `UNVERIFIED` and `FAILED` are what a pre-port document reports.
+    r"|\bUNVERIFIED\b"
+    r"|\bFAILED\b",
+    re.IGNORECASE,
 )
 
 #: The grammatical constructions by which a *completed* phase gets described as
@@ -433,6 +482,59 @@ def test_every_repository_path_named_in_prose_exists() -> None:
 
     assert not offenders, (
         "these named paths do not exist:\n  " + "\n  ".join(sorted(set(offenders)))
+    )
+
+
+def test_the_pending_path_exemption_list_names_nothing_that_exists() -> None:
+    """An exemption for a path that has since shipped is a hole in the check above.
+
+    `PENDING_PHASE_PATHS` skips the existence test for its entries, so an entry
+    that outlives its phase exempts that path **permanently**. `mql5/` sat in that
+    list after the port landed; from that moment the existence check could not have
+    noticed the port directory being deleted, and would have reported the tree
+    healthy.
+    """
+    offenders = [p for p in PENDING_PHASE_PATHS if (REPO / p.rstrip("/")).exists()]
+
+    assert not offenders, (
+        "these paths are exempted from the existence check but do exist, so the "
+        f"exemption only hides deletion: {offenders}. Remove each in the same "
+        "change that completes its phase."
+    )
+
+
+def test_no_document_describes_a_shipped_path_as_absent() -> None:
+    """Three sentences survived a green suite by saying the opposite of the truth.
+
+    The parity tests assert the run's real status against the run itself, and the
+    README table is checked row by row -- and `ROADMAP.md` still said `mql5/` did
+    not exist while the same file announced the port complete, and `README_FA.md`
+    still said the sidecar directory was empty. Both were true of the repository
+    three phases ago.
+
+    Nothing caught them because both claims are *negations*, and every existing
+    check looks for a positive assertion to contradict. A document that lies by
+    omission of a positive is invisible to a suite that only verifies positives.
+
+    The match requires both a shipped path and an absence shape on the same line.
+    The alternatives are listed explicitly rather than inferred, and were measured
+    against the whole corpus: three offenders, no false positives.
+    """
+    offenders: list[str] = []
+    for path in MARKDOWN:
+        if path.name in FORWARD_CHECK_EXEMPT:
+            continue
+        for number, line in enumerate(_text(path).splitlines(), start=1):
+            named = [s for s in SHIPPED_PATHS if s in line]
+            if named and ABSENCE_CLAIM.search(line):
+                offenders.append(
+                    f"{path.relative_to(REPO)}:{number}: describes {named[0]!r} "
+                    f"as absent: {line.strip()}"
+                )
+
+    assert not offenders, (
+        "these lines claim a delivered path is missing or empty:\n  "
+        + "\n  ".join(offenders)
     )
 
 

@@ -344,7 +344,9 @@ the document a reader of that phase will open first.
     regression suite, not a validation study** — it establishes what the engine *names*,
     and nothing about whether any setup works. There is no out-of-sample test, no
     parameter fit and no sample large enough to support one; `VALIDATION.md` §9 lists
-    what would be needed, and the largest missing piece is a stated null.
+    what would be needed. The largest of those, **a stated null**, is now written
+    down and implemented in §9.4 — which closes the *specification* gap and none of
+    the evidence ones.
   - **It is deliberately not a snapshot.** A golden file that stores the engine's output
     cannot tell a fix from a regression: it fails on both, passes on neither, and is
     updated by pasting whatever the code printed — which makes the human check optional.
@@ -933,38 +935,63 @@ be the same error the interface is built to prevent.
 *Changes when:* an evaluation exists that says something about it. There is none,
 and `VALIDATION.md` §9 is where one would have to start.
 
-### `mql5/` does not exist, and that is a statement about the hardware
+### `mql5/` is a port, and a port is not a proof of equivalence
 
-The MQL5 port is **partly** in the repository. `tests/parity/mql5/` holds one
-sidecar, produced by a real MetaEditor build running in the Strategy Tester from
-`parity_range_breakout_001`'s own bars. It is compared, it disagrees on the four
-unported groups, and a parity run reports `FAILED`. Parity is **not** established.
+**The port exists, it compiles, and the three cases agree.** `mql5/` holds a full
+MQL5 implementation of the declared scope — the eleven detectors, the market-state
+classifier, the plan geometry and the decision engine — and
+`tests/parity/mql5/` holds **three** sidecars, each produced by a real MetaEditor
+build running in the Strategy Tester. A parity run reports `AGREED`, with a worst
+relative deviation of `0.0` on every declared field.
 
-This is **not** a deferral dressed up as a plan. An MQL5 implementation of this
-scope can only be *validated* by compiling it with MetaEditor and running it
-against a live MetaTrader terminal, and neither exists on the machine this was
-written on. The two ways to make the status read better would both be worse than
-the status itself: shipping thousands of lines of never-compiled MQL5 under a
-directory named `AlBrooks`, or hand-writing a `"producer": "mql5"` sidecar to turn
-a green run into a red one. The second is precisely the dishonesty the Phase 20
-harness was built to detect, and committing it would turn the harness into a
-decoration.
+That is a real result, and it is still not more than it is. It is an agreement
+about **code**, between two implementations of the same logic, over **three
+hand-drawn charts**, inside one declared `SCOPE`. It is not a proof of the two
+implementations being equivalent, it says nothing about inputs the case set does
+not contain, and it says **nothing whatever** about whether any of this works on a
+market. The harness prints those limits itself, on every run, because a reader who
+sees only `AGREED` is being told more than the run established.
 
-What *was* built is the half that needs no MetaEditor: the adapter, the freeze and
-the stateful session. `tests/unit/test_phase21_adapter.py` asserts that `mql5/`
-does not exist and that parity is still `UNVERIFIED`, so the state is a fact the
-suite checks rather than a claim the documentation makes.
+The failure this section was originally written to prevent is still prevented, and
+by the same mechanism. Shipping never-compiled MQL5 under a directory named
+`AlBrooks` would have made the port a fiction, and hand-writing a
+`"producer": "mql5"` sidecar to turn a run green would have been precisely the
+dishonesty the Phase 20 harness exists to detect. Neither happened, and the
+harness is what proves it: `scripts/build_mql5.py` has no path that copies the
+Python reference into place and no flag that would make one appear. The sidecars
+are covered by
+`test_the_mql5_directory_holds_exactly_the_sidecars_this_project_produced`, so
+each one is a deliberate claim rather than a file that happened to be committed.
 
-*Changes when:* someone runs MetaEditor. `docs/PYTHON_MQL5_PARITY.md` §8 has the
-ordered list, and the expectation is that the first run fails.
+*Changes when:* a case is added, in which change it needs a real-build sidecar, the
+inventory test, and the docs together; or when someone re-runs the loop on a second
+machine, which `docs/algorithms/MQL5_BUILD_LOOP.md` has the ordered steps for.
 
-### Not started at all
+### Nothing is left not started
 
-`src/albrooks/serialization/` still contains only an empty `__init__.py` — a
-placeholder for Phase 22, not a partial implementation. `src/albrooks/adapters/`
-is no longer one: `adapters/mt5/` is populated and is on the path a live consumer
-takes, though nothing in the engine reads it. `src/albrooks/trade/`,
-`src/albrooks/decision/` and `src/albrooks/engine/pipeline.py` are populated and
-read by `Analyzer.analyze()` - Phases 14, 15 and 16 - so nothing below the
-adapters layer is a placeholder any more.
+There is no longer a placeholder module standing in for finished work.
+`src/albrooks/serialization/` was an empty `__init__.py` until Phase 22 gave it a
+stable, self-reporting JSON contract, and it now holds `json.py` and the
+`examples/llm_analysis.py` that consumes it. `src/albrooks/adapters/mt5/` is
+populated and sits on the path a live consumer takes, though nothing inside the
+engine reads it — the engine is platform-independent by design, and
+`scripts/check_no_mt5_dependency.py` is what keeps that true rather than a
+convention.
+
+`src/albrooks/trade/`, `src/albrooks/decision/` and
+`src/albrooks/engine/pipeline.py` are populated and read by `Analyzer.analyze()`
+— Phases 14, 15 and 16 — so nothing below the adapters layer is a stub.
+
+**What is genuinely absent is measurement, not code.** Every layer this checklist
+covers is written and tested; none of it has been checked against outcomes. That is
+a different kind of gap from the ones above, and it does not close by adding a
+module. `VALIDATION.md` §9 lists the four prerequisites. The one that was pure
+specification — **a stated null** — is written down and implemented in §9.4, with a
+fixed seed and a `verdict` that is a constant. **§9.1 now has a working exporter**,
+`scripts/export_bars.py`, which pulls real bars through the adapter's own freeze and
+refuses to write a dataset whose bars are not monotonic or not closed on the server
+clock. What is still missing is data itself, and two human judgements that no script
+can supply: labels with a stated provenance, and a split to hold out.
+
+*Changes when:* a phase opens. There is none.
 

@@ -60,13 +60,18 @@ import pytest
 
 from albrooks.adapters.mt5 import (
     ASCENDING,
+    CLOCK_CALLER,
     CLOCK_SERVER,
     NO_FORMING_BAR,
     AnalysisSession,
     MT5Feed,
+    is_closed,
     normalize_order,
+    period_seconds,
 )
 from albrooks.adapters.mt5 import timeframes as tf
+from albrooks.adapters.mt5.dataset import inspect_series, require_integrity
+from albrooks.core.bars import BarSeries
 
 #: The largest clock difference a healthy terminal should show. The skew measured
 #: on a live Alpari MT5 was 3.099 hours, so this bound is generous enough not to
@@ -270,6 +275,13 @@ def test_the_live_analysis_never_reports_a_price_from_the_forming_bar(feed: Any)
     The comparison therefore rounds both sides to the instrument's precision and
     compares numbers, so a genuine leak still fails and a coincidental digit match
     does not.
+
+    Rounding was not sufficient on its own, and the reason is worth stating before
+    anyone shortens this again: the set of prices the market has *finished printing*
+    is every open, high, low and close of every closed bar — not the extremes alone.
+    A forming extreme can coincide with a closed bar's **close**, and the result is
+    supposed to report that close. See the comment at the `printed` set for the
+    live run that caught this and the two earlier false positives.
     """
     digits = _quote_digits(feed, "EURUSD")
 
@@ -285,26 +297,11 @@ def test_the_live_analysis_never_reports_a_price_from_the_forming_bar(feed: Any)
 
     result = AnalysisSession().on_bars(frozen.series, freeze=frozen.freeze)
 
-    # Only a price that occurs on the forming bar **and nowhere on any closed
-    # bar** is evidence of a leak. This is the second version of this check, and
-    # the first was wrong twice over.
-    #
-    # Version one searched the serialised result for the forming high as a
-    # *substring*, so a forming high of 1.13640 matched 1.13645 -- a closed bar's
-    # low. Version two compared numerically, which fixed that, and then fired on a
-    # live run because the forming bar's high of 1.13654 was *also* the high of a
-    # closed bar. Both were false positives; the test was wrong, not the adapter.
-    #
-    # The property that actually holds is about prices the market has not finished
-    # printing, so the comparison is against the closed bars' own values and a
-    # genuine leak -- a forming extreme that no closed bar shares -- still fails.
-    closed = {round(b.high, digits) for b in frozen.series} | {
-        round(b.low, digits) for b in frozen.series
-    }
-    forming_only = {
-        round(forming["high"], digits),
-        round(forming["low"], digits),
-    } - closed
+    # Only a price the market has **not finished printing** is evidence of a leak,
+    # and that means every OHLC of every closed bar, not just its extremes. The
+    # reasoning, and the two live false positives that forced it, are on
+    # `_unprinted_forming_extremes`.
+    forming_only = _unprinted_forming_extremes(frozen.series, forming, digits)
 
     if not forming_only:
         pytest.skip(
@@ -315,6 +312,49 @@ def test_the_live_analysis_never_reports_a_price_from_the_forming_bar(feed: Any)
     leaked = _prices_in(result, digits) & forming_only
     assert not leaked, f"prices unique to the forming bar reached the result: {sorted(leaked)}"
     assert result.last_closed == len(frozen.series) - 1
+
+
+def _unprinted_forming_extremes(series: Any, forming: Any, digits: int) -> set[float]:
+    """The forming bar's extremes that **no closed bar prints at all**.
+
+    A leak is a price the market has not finished printing, so the set of prices
+    already accounted for is every **open, high, low and close** of every closed
+    bar. An empty result means the run cannot distinguish a leak, and the caller
+    skips rather than reporting a pass.
+
+    This is the third version of this rule and the first two were both wrong in the
+    same direction: each excluded prices a live run can legitimately produce.
+
+    - Version one searched the serialised result for the forming high as a
+      **substring**, so a forming high of `1.13640` matched `1.13645` — a closed
+      bar's low.
+    - Version two compared numerically, which fixed that, and then fired on a live
+      run because the forming high of `1.13654` was *also* the high of a closed bar.
+    - Version three covers opens and closes, and fired once more: a forming extreme
+      of `1.13309` was the **close of the last closed bar** — a price the market had
+      finished printing, and one the result is *supposed* to carry. On that run the
+      result held 17 distinct closed closes and 16 distinct closed opens, none of
+      which the previous two versions accounted for.
+
+    The shared mistake is worth naming because it is easy to repeat: both earlier
+    versions built the "already printed" set from closed bars' **extremes only**.
+    A close is printed as surely as a high.
+
+    The function is separated from the live test so it can be checked **without a
+    terminal**. The live test is skipped in CI, which meant this rule -- the part
+    that had already produced two false positives -- was never exercised there at
+    all. A rule that is only ever checked against a moving market is a rule that
+    gets rewritten from one false positive to the next.
+    """
+    printed = {
+        round(value, digits)
+        for bar in series
+        for value in (bar.open, bar.high, bar.low, bar.close)
+    }
+    return {
+        round(forming["high"], digits),
+        round(forming["low"], digits),
+    } - printed
 
 
 def _quote_digits(feed: Any, symbol: str) -> int:
@@ -356,3 +396,133 @@ def _prices_in(result: Any, digits: int) -> set[float]:
 #: The sentinel, imported here rather than at the top so the module's import list
 #: stays about the adapter's public surface.
 NO_FORMING_BAR_EXPECTED = "NO_FORMING_BAR"
+
+
+# --------------------------------------------------------------------------
+# The leak rule itself, checked without a terminal
+# --------------------------------------------------------------------------
+#
+# These three carry **no** `@live` mark, and that is the point. Everything else in
+# this file is skipped in CI, so before they existed the rule that decides what
+# counts as a leak was only ever exercised against a live, moving market -- where it
+# had already produced two false positives, each of which "fixed" it by narrowing
+# what it looked at. A rule verified only against live data is verified only when
+# someone is watching a terminal.
+
+
+def _flat_series(*ohlc: tuple[float, float, float, float]) -> BarSeries:
+    """Closed bars from `(open, high, low, close)` tuples."""
+    return BarSeries(
+        [
+            {"time": float(i), "o": o, "h": h, "l": low, "c": c}
+            for i, (o, h, low, c) in enumerate(ohlc)
+        ]
+    )
+
+
+def test_a_price_no_closed_bar_prints_is_still_reported_as_a_leak() -> None:
+    """The rule must keep its teeth.
+
+    A narrowing fix that made the false positives go away without checking this
+    would have converted a flaky test into a permanently green one, which is the
+    worst outcome available: it looks like the adapter was proven correct.
+    """
+    series = _flat_series((100.0, 101.0, 99.0, 100.5), (100.5, 101.5, 99.5, 101.0))
+
+    unprinted = _unprinted_forming_extremes(series, {"high": 100.25, "low": 100.2}, 5)
+
+    assert unprinted == {100.2, 100.25}
+
+
+def test_a_forming_extreme_equal_to_a_closed_close_is_not_a_leak() -> None:
+    """The false positive that actually fired.
+
+    `1.13309` was the close of the last closed bar and a forming extreme at the same
+    time. The previous version of this rule reported it as a leak, which made the
+    adapter look broken when it was not.
+    """
+    series = _flat_series((100.0, 101.0, 99.0, 100.5))
+
+    assert _unprinted_forming_extremes(series, {"high": 100.5, "low": 99.0}, 5) == set()
+
+
+def test_a_forming_extreme_equal_to_a_closed_open_is_not_a_leak_either() -> None:
+    """Opens were the other half of the same omission, and are easier to miss.
+
+    A forming bar's high or low landing exactly on an earlier bar's open is ordinary
+    price action, so this is at least as likely as the close case and was equally
+    misreported.
+    """
+    series = _flat_series((100.0, 101.0, 99.0, 100.5))
+
+    assert _unprinted_forming_extremes(series, {"high": 101.0, "low": 100.0}, 5) == set()
+
+
+# --------------------------------------------------------------------------
+# A real dataset passes its own integrity check
+# --------------------------------------------------------------------------
+
+
+@live
+def test_a_real_exported_series_is_monotonic_and_fully_closed(feed: Any) -> None:
+    """The §9.1 dataset this machine would produce, checked by §9.1's own rules.
+
+    The integrity logic itself is covered without a terminal in
+    `test_dataset_integrity.py`, so this is not re-testing the checks. It is
+    testing the thing those checks exist for: that **real bars from a real broker
+    survive them.** Synthetic bars are built to be well-formed, so a hand-built
+    series can never tell you whether the real feed is.
+
+    Two things this can fail on, and both would be worth knowing:
+
+    - **A forming bar in the export.** `closed_bars` is supposed to drop it. If the
+      server clock is unavailable and the adapter silently fell back to the local
+      one -- 3.1 hours behind on the machine this was developed on -- this is where
+      it shows up, rather than as a look-ahead discovered months later in a result.
+    - **A gap or a duplicate in real history.** Markets close at weekends and
+      around holidays, so *gaps* are expected and are not a fault. A repeated
+      timestamp is not, and would mean the export lost ordering on the way out.
+    """
+    frozen = feed.closed_bars("EURUSD", tf.M15, 500)
+    seconds = period_seconds(tf.M15)
+
+    report = require_integrity(
+        inspect_series(
+            frozen.series,
+            seconds,
+            now=frozen.freeze.now,
+            clock=frozen.freeze.clock,
+        )
+    )
+
+    assert report.ok, report.problems
+    # Asking for 500 yields 499 *because* one bar was still forming and was
+    # dropped. The relationship is the assertion, not the count: a run that
+    # returned 500 would mean the forming bar was kept, and a run that returned
+    # fewer would mean more than one was dropped.
+    assert frozen.freeze.dropped == 1
+    assert report.bars == 500 - frozen.freeze.dropped == frozen.freeze.bars_out
+    # The clock is recorded, so a fallback to local time is visible in the artefact
+    # rather than inferred.
+    assert report.clock in (CLOCK_SERVER, CLOCK_CALLER)
+    # Monotonic: strictly ascending, so a backtest's "next bar" is unambiguous.
+    times = [b.time for b in frozen.series]
+    assert times == sorted(times)
+    assert len(set(times)) == len(times)
+    # Closed: the last bar finished before the clock that judged it.
+    assert is_closed(times[-1], seconds, frozen.freeze.now)
+
+
+def test_the_extremes_only_rule_would_have_misreported_both() -> None:
+    """Pins the old rule's behaviour, so the narrowing cannot be undone silently.
+
+    Without this, "simplify" the set back to highs and lows and every assertion above
+    still passes -- the first and third would go on reporting a leak, exactly as they
+    did on a live run, and the suite would stay green because none of the live tests
+    run in CI.
+    """
+    series = _flat_series((100.0, 101.0, 99.0, 100.5))
+    extremes_only = {round(b.high, 5) for b in series} | {round(b.low, 5) for b in series}
+
+    assert {100.5} - extremes_only == {100.5}  # the close
+    assert {100.0} - extremes_only == {100.0}  # the open

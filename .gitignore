@@ -50,3 +50,10 @@ mql5/**/*.ex4
 .env.*
 *.pem
 *.key
+
+# Real bar data exported by `scripts/export_bars.py`. Large, and the broker's to
+# distribute rather than this repository's to republish. The provenance travels
+# *inside* each file, so a dataset stays auditable while uncommitted -- which is
+# the point: an unlabelled sample is what VALIDATION.md 9.2 complains about, and
+# recording where the bars came from matters more than shipping them in git.
+datasets/
