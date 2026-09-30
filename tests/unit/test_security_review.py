@@ -85,12 +85,51 @@ def test_a_sidecar_may_not_be_named_outside_the_vectors_directory(name: str) -> 
     exploitable. But a pull request is an entirely ordinary way for a hostile case
     file to arrive, and a harness that can be talked into a false `MATCH` by one
     has lost the property it exists to provide.
+
+    ## Why this passed on Windows and failed on Linux
+
+    It passed on the machine that wrote it, and this test is the second time in
+    this repository that has happened — see the forming-bar leak check. The cause
+    was the same: an assertion on a *message* rather than on the property.
+
+    `..\\..\\SOURCES.md` is a traversal on Windows and an ordinary filename on
+    Linux, so the runner legitimately produced two different notes for the same
+    input: "resolves outside" on one, "is not in mql5/" on the other. Both refused
+    the case and neither read the file, so the security property held throughout —
+    only the wording differed, and the test had pinned one platform's wording.
+
+    So the assertions below are on what must be true, not on what must be said:
+    the case is refused, nothing is compared, and no difference is recorded. The
+    note is still checked, but for the *refusal* rather than for one phrase.
     """
     result = run_case(_case(name), VECTORS)
+
+    # Refused, and nothing was compared or recorded.
     assert result.status in (CASE_ERROR, MQL5_ABSENT)
-    assert "resolves outside" in result.note, (
-        f"{name!r} was not refused as a traversal: {result.status} / {result.note!r}"
+    assert result.compared == 0
+    assert result.differences == ()
+    # And it says so, in a way that names the name rather than staying silent.
+    assert name in result.note or repr(name) in result.note, (
+        f"{name!r} was refused without naming it: {result.note!r}"
     )
+    assert result.max_deviation is None
+
+
+def test_a_backslash_sidecar_name_is_refused_the_same_way_on_every_platform() -> None:
+    """A security check must not have a different verdict per operating system.
+
+    `_resolve_sidecar` now refuses a backslash before resolving, because
+    `is_relative_to` alone cannot: on POSIX a backslash is an ordinary character,
+    so `..\\..\\SOURCES.md` resolves *inside* the directory and is merely reported
+    absent, while on Windows it is a traversal and is reported as one. Both are
+    safe, but a case file is read by every contributor and the harness exists to
+    give the same answer to all of them.
+    """
+    result = run_case(_case("..\\..\\SOURCES.md"), VECTORS)
+
+    assert result.status == CASE_ERROR
+    assert "backslash" in result.note
+    assert result.compared == 0
 
 
 def test_a_legitimate_sidecar_name_still_resolves(tmp_path: Path) -> None:

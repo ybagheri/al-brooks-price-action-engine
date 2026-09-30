@@ -281,7 +281,39 @@ def _resolve_sidecar(vectors_dir: Path, name: str) -> Path | CaseResult:
     The check is `Path.is_relative_to` on the resolved paths, so a symlink
     pointing out of the directory is refused too — resolving first is what makes
     that true.
+
+    ## Why a backslash is refused before any of that
+
+    `is_relative_to` is platform-dependent for one shape of input, and that is why
+    this is refused explicitly rather than left to the resolve.
+
+    A case file is repository-tracked, so it is read on every contributor's
+    machine, and `..\\..\\SOURCES.md` means two different things:
+
+    - on Windows, a separator, so the resolve lands outside and the containment
+      check refuses it as a traversal;
+    - on Linux, an ordinary character in a single filename, so the resolve stays
+      inside, the containment check passes, and the name is then reported as
+      simply absent.
+
+    Both outcomes are safe — the file is never read on either — but a security
+    check whose *verdict* depends on the reader's operating system is exactly the
+    kind of thing this project refuses to ship. A name containing a backslash is
+    therefore refused on every platform, so the same case file is rejected the
+    same way by everyone. No shipped sidecar contains one.
     """
+    if "\\" in name:
+        return CaseResult(
+            case_id=Path(name).name,
+            status=CASE_ERROR,
+            note=(
+                f"mql5_vector {name!r} contains a backslash, which is a path "
+                f"separator on some platforms and an ordinary character on "
+                f"others; a sidecar name is refused rather than read differently "
+                f"depending on who runs the harness"
+            ),
+        )
+
     root = vectors_dir.resolve()
     candidate = (vectors_dir / name).resolve()
     if not candidate.is_relative_to(root):
