@@ -44,6 +44,13 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+    # `tomllib` is standard library from 3.11 only, and the CI matrix includes
+    # 3.10. A test that reads pyproject.toml must keep working there, because
+    # `importorskip` would turn a checked security property into a silent no-op
+    # on exactly one version -- which is the failure mode that file exists to
+    # avoid. `tomli` is the reference backport and is dev-only, so the
+    # zero-runtime-dependency property is untouched.
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 pandas = [
     "pandas>=2.0.0",

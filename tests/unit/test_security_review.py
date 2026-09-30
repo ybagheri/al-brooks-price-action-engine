@@ -24,6 +24,7 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -361,6 +362,49 @@ def test_the_pinned_shas_are_the_versions_the_comment_claims() -> None:
 # --------------------------------------------------------------------------
 
 
+def _toml_parser() -> Any:
+    """A TOML reader that exists on every version this project supports.
+
+    `tomllib` joined the standard library in **3.11**. This file's CI matrix
+    includes 3.10, and `requires-python` says `>=3.10`, so a plain
+    `import tomllib` raised `ModuleNotFoundError` there and took
+    `test_the_package_declares_no_runtime_dependencies` down with it.
+
+    That test had been failing on 3.10 since it was written. Nothing noticed,
+    because pytest had never run in CI in this repository -- the run failed
+    earlier, at mypy, and the matrix cancelled the other versions before they
+    reached the suite.
+
+    The tempting fix is `pytest.importorskip("tomllib")`, and it is the wrong one:
+    it would leave the zero-dependency property **unchecked on 3.10** and
+    reported as a pass, which is the silent no-op this file is written against.
+    `tomli` is the reference backport, is declared as a dev dependency behind a
+    `python_version < "3.11"` marker, and leaves the runtime dependency surface
+    exactly as empty as it was.
+    """
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # Python 3.10
+        import tomli as tomllib  # type: ignore[no-redef]
+
+    return tomllib
+
+
+def test_a_toml_parser_is_available_on_every_supported_python() -> None:
+    """The dependency that makes the checks above runnable must itself be checked.
+
+    Without this, forgetting the `tomli` marker would turn a 3.10 run into a
+    `ModuleNotFoundError` at the first `pyproject.toml` read -- a failure that
+    looks like a broken test rather than a missing dev dependency, and one that
+    only appears on the oldest version in the matrix.
+    """
+    parser = _toml_parser()
+
+    assert hasattr(parser, "loads")
+    parsed = parser.loads('[project]\nname = "albrooks"\n')
+    assert parsed["project"]["name"] == "albrooks"
+
+
 def test_the_package_declares_no_runtime_dependencies() -> None:
     """A zero-dependency core is a supply-chain property, so it is asserted.
 
@@ -368,7 +412,7 @@ def test_the_package_declares_no_runtime_dependencies() -> None:
     the library's privileges, in every consumer's process. The count is the
     security property, so it is checked rather than described.
     """
-    import tomllib
+    tomllib = _toml_parser()
 
     pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
     project = pyproject["project"]
@@ -381,6 +425,13 @@ def test_the_package_declares_no_runtime_dependencies() -> None:
         assert all("@" not in dep or "://" in dep for dep in extra), (
             "an unpinned dependency was added to an extra"
         )
+    # And the marker that keeps the 3.10 run working must still be there, because
+    # dropping it fails on the oldest supported version and nowhere else.
+    dev = pyproject["project"].get("optional-dependencies", {}).get("dev", [])
+    assert any(dep.startswith("tomli") for dep in dev), (
+        "the dev extra no longer carries the tomli backport, so reading "
+        "pyproject.toml will fail on Python 3.10"
+    )
 
 
 def test_the_live_terminal_suite_touches_no_ordering_api() -> None:
